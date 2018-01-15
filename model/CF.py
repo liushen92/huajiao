@@ -1,10 +1,11 @@
 # coding: utf-8
 import numpy as np
 import scipy.sparse as sp
-from DataProvider import DataLoader
+# from DataProvider import DataLoader
 import logging
 from joblib import Parallel, delayed
 import multiprocessing
+from os import path
 
 
 class CF(object):
@@ -53,7 +54,7 @@ class CF(object):
 
             logging.info("Item-similarity matrix done.")
             self.item_similarity_matrix = self.item_similarity_matrix.tocsr()
-            sp.save_npz("..\\tmp\\item_similarity_matrix", self.item_similarity_matrix)
+            sp.save_npz(path.join("..", "tmp", "item_similarity_matrix"), self.item_similarity_matrix)
 
     def pearson_of_item(self, item_id):
         print("item {} start".format(item_id))
@@ -123,7 +124,7 @@ class CF(object):
         user_item_matrix = user_item_matrix.tocsc()
 
         logging.info("Save matrix..")
-        sp.save_npz("..\\tmp\\user_item_matrix", user_item_matrix)
+        sp.save_npz(path.join("..", "tmp", "user_item_matrix.npz"), user_item_matrix)
         return user_item_matrix
 
     def _convert_watch_time_to_score(self, watch_time):
@@ -140,12 +141,12 @@ if __name__ == "__main__":
     # data_provider.load_train("..\\data\\train_data", "..\\tmp")
     # cf_model = CF(data_provider.user_watch_time, data_provider.user_num, data_provider.item_num)
 
-    user_watch_time_matrix = sp.load_npz("..\\tmp\\user_item_matrix.npz")
+    user_watch_time_matrix = sp.load_npz(path.join("..", "tmp", "user_item_matrix.npz"))
     user_num, item_num = user_watch_time_matrix.shape
     logging.info("Number of items consumed per user: {}".format(1.0 * user_watch_time_matrix.count_nonzero() / user_num))
     cf_model = CF(user_watch_time_matrix, user_num, item_num)
 
     cf_model.fit()
-    similarity_matrix = sp.load_npz("..\\tmp\\item_similarity_matrix.npz")
-    print(similarity_matrix.shape)
+    # similarity_matrix = sp.load_npz("..\\tmp\\item_similarity_matrix.npz")
+    # print(similarity_matrix.shape)
     # recommend_dict = cf_model.recommend()
