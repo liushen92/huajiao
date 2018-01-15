@@ -1,7 +1,7 @@
 import tensorflow as tf
 import logging
 from os import path
-from utils import Saver
+from model.utils.utils import Saver
 
 
 class BPRmodel(object):

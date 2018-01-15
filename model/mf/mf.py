@@ -100,6 +100,8 @@ class MatrixFactorization(object):
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(filename)s:%(levelname)s:%(message)s',
+                        datefmt='%Y-%m-%d %A %H:%M:%S', )
     input_data = MFDataProvider.MFDataProvider(path.join("..", "..", "data", "train_data"))
     model = MatrixFactorization(input_data.user_num, input_data.item_num, 100)
     with tf.Session() as sess:

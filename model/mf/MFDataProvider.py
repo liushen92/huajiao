@@ -2,15 +2,14 @@
 from model.utils.DataLoader import DataLoader
 from random import shuffle
 import logging
-from functools import reduce
+from os import path
 
 
 class MFDataProvider(DataLoader):
-    def __init__(self, path_to_train):
+    def __init__(self, path_to_train, path_to_save):
         super(MFDataProvider, self).__init__()
-        self.load_train(path_to_train)
-        self.user_watch_time = reduce(lambda x, y: x + list(map(lambda z: (y[0], ) + z, list(y[1].items()))),
-                                      self.user_watch_time.items(), [])
+        self.load_train(path_to_train, path_to_save)
+        self.user_watch_time = self._parse_dict_to_list(self.user_watch_time)
 
     def batch_generator(self, batch_size):
         """
@@ -26,3 +25,16 @@ class MFDataProvider(DataLoader):
             batch_data['item_idx'] = self.user_watch_time[start_idx: end_idx, 1]
             batch_data['user_item_score'] = self.user_watch_time[start_idx: end_idx, 2]
             yield batch_data
+
+    def _parse_dict_to_list(self, user_watch_time_dict):
+        user_watch_time_list = list()
+        for user_id in user_watch_time_dict:
+            for item_id in user_watch_time_dict[user_id]:
+                user_watch_time_list.append((user_id, item_id, user_watch_time_dict[user_id][item_id]))
+        return user_watch_time_list
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(filename)s:%(levelname)s:%(message)s',
+                        datefmt='%Y-%m-%d %A %H:%M:%S')
+    mf_data_provider = MFDataProvider(path.join("..", "..", "data", "train_data"), path.join("..", "..", "tmp"))
