@@ -3,6 +3,7 @@ from model.utils.DataLoader import DataLoader
 from random import shuffle
 import logging
 from os import path
+import numpy as np
 
 
 class MFDataProvider(DataLoader):
@@ -30,8 +31,10 @@ class MFDataProvider(DataLoader):
         user_watch_time_list = list()
         for user_id in user_watch_time_dict:
             for item_id in user_watch_time_dict[user_id]:
-                user_watch_time_list.append((user_id, item_id, user_watch_time_dict[user_id][item_id]))
-        return user_watch_time_list
+                if user_watch_time_dict[user_id][item_id] < 30:
+                    continue
+                user_watch_time_list.append([user_id, item_id, user_watch_time_dict[user_id][item_id]])
+        return np.array(user_watch_time_list)
 
 
 if __name__ == "__main__":

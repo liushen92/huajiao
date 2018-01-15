@@ -1,7 +1,7 @@
 # coding: utf-8
 import tensorflow as tf
 import logging
-from . import MFDataProvider
+import model.mf.MFDataProvider as MFDataProvider
 from os import path
 
 
@@ -61,10 +61,10 @@ class MatrixFactorization(object):
                                                  - tf.reduce_sum(tf.multiply(user_emb, item_emb))
                                                  - user_bias
                                                  - item_bias)
-                                       + self.lambda_value * (tf.add_n(tf.square(user_emb),
-                                                                       tf.square(item_emb),
-                                                                       tf.square(user_bias),
-                                                                       tf.square(item_bias))))
+                                       + self.lambda_value * (tf.add_n([tf.reduce_mean(tf.square(user_emb)),
+                                                                        tf.reduce_mean(tf.square(item_emb)),
+                                                                        tf.reduce_mean(tf.square(user_bias)),
+                                                                        tf.reduce_mean(tf.square(item_bias))])))
 
         with tf.name_scope("optimizer"):
             self.optimizer = tf.train.GradientDescentOptimizer(self.learning_rate).minimize(self.loss)
@@ -102,7 +102,7 @@ class MatrixFactorization(object):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(filename)s:%(levelname)s:%(message)s',
                         datefmt='%Y-%m-%d %A %H:%M:%S', )
-    input_data = MFDataProvider.MFDataProvider(path.join("..", "..", "data", "train_data"))
+    input_data = MFDataProvider.MFDataProvider(path.join("..", "..", "data", "train_data"), path.join("..", "..", "tmp"))
     model = MatrixFactorization(input_data.user_num, input_data.item_num, 100)
     with tf.Session() as sess:
         model.fit(sess=sess, input_data=input_data)
