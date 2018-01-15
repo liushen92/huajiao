@@ -16,8 +16,8 @@ class CF(object):
             if isinstance(user_item_record, dict) else user_item_record
         self.user_item_matrix_csr = self.user_item_matrix_csc.tocsr()
 
-        self.item_similarity_matrix = None
-        self.user_similarity_matrix = None
+        self._item_similarity_matrix = None
+        self._user_similarity_matrix = None
         self._item_mean = None
         self._item_std = None
 
@@ -34,6 +34,19 @@ class CF(object):
             self._item_std = np.sqrt(np.sum(self.user_item_matrix_csc.power(2), axis=0).reshape((self.item_num, 1)) -
                                      self.user_num * np.power(self.item_mean, 2))
         return self._item_std
+
+    @property
+    def item_similarity_matrix(self):
+        if self._item_similarity_matrix is None:
+            row = np.array([np.ones(100, dtype=np.int32) * k for k in range(self.item_num)]).reshape(self.item_num * 100)
+            col = np.memmap(path.join("..", "tmp", "item_similarity_matrix_id"), dtype=np.int32,
+                            shape=(self.item_num, 100), mode="r").reshape(self.item_num * 100)
+            data = np.memmap(path.join("..", "tmp", "item_similarity_matrix_val"), dtype=np.float64,
+                             shape=(self.item_num, 100), mode="r").reshape(self.item_num * 100)
+
+            self._item_similarity_matrix = sp.csr_matrix((data, (row, col)), shape=(self.item_num, self.item_num))
+
+        return self._item_similarity_matrix
 
     def fit(self, user_based=False, K=100):
         """
@@ -53,7 +66,7 @@ class CF(object):
             num_cores = multiprocessing.cpu_count()
             Parallel(n_jobs=num_cores)(delayed(self.pearson_of_item)
                                        (item_similarity_matrix_id, item_similarity_matrix_val, item_id, K)
-                                       for item_id in range(2))
+                                       for item_id in range(self.item_num))
             # for item_id in range(self.item_num):
             #     self.pearson_of_item(item_id)
 
@@ -62,7 +75,7 @@ class CF(object):
             # sp.save_npz(path.join("..", "tmp", "item_similarity_matrix"), self.item_similarity_matrix)
 
     def pearson_of_item(self, item_similarity_matrix_id, item_similarity_matrix_val, item_id, K):
-        print("item {} start".format(item_id))
+        logging.info("item {} start".format(item_id))
 
         user_bought_item1 = sp.find(self.user_item_matrix_csc.getcol(item_id))[0]
         _item_id_set = set()
@@ -82,30 +95,33 @@ class CF(object):
         item_similarity_matrix_id[item_id, :] = top_neighbors
         item_similarity_matrix_val[item_id, :] = item_similarity_array[top_neighbors]
 
-        print("item {} done.".format(item_id))
+        logging.info("item {} done.".format(item_id))
 
     def recommend(self, TopK=20, K=20, max_size=100):
         recommend_dict = dict()
         logging.info("Start item-based CF: no. of item {}, no. of user {}".format(self.item_num, self.user_num))
         score_list = np.zeros(shape=(self.item_num, 1))
         for user_id in range(self.user_num):
-            logging.debug("User {} start".format(user_id))
+            logging.info("User {} start".format(user_id))
 
             top_rated_items = sorted(range(1, self.item_num), key=lambda x: self.user_item_matrix_csr[user_id, x], reverse=True)[0:TopK]
             top_rated_scores = self.user_item_matrix_csr[user_id, top_rated_items]
             candidate_set = set()
             for item_id in top_rated_items:
-                for i in sorted(range(self.item_num), key=lambda x: self.item_similarity_matrix[item_id, x], reverse=True)[0:K]:
+                for i in sorted(range(self.item_num), key=lambda x: self.item_similarity_matrix[item_id, x],
+                                reverse=True)[0:K]:
                     candidate_set.add(i)
+            logging.debug("candidate set size: {}".format(len(candidate_set)))
 
             for item_id in candidate_set:
-                item_similarity_vec = self.item_similarity_matrix[np.ones(shape=[K, 1], dtype=np.int32) * item_id, top_rated_items]
-                score_list[item_id] = top_rated_scores.dot(item_similarity_vec) / np.linalg.norm(item_similarity_vec, ord=1)
+                item_similarity_vec = self.item_similarity_matrix[item_id, top_rated_items]
+                score_list[item_id] = item_similarity_vec.dot(top_rated_scores.T) / np.linalg.norm(item_similarity_vec,
+                                                                                                   ord=1)
 
-            recommend_dict[user_id] = [(k, score_list[k])
-                                       for k in sorted(range(self.item_num), key=lambda x: score_list[x], reverse=True)[0:max_size]
-                                       ]
-            logging.debug("User {} done.".format(user_id))
+            recommend_dict[user_id] = [(k, score_list[k]) for k in sorted(range(self.item_num),
+                                                                          key=lambda x: score_list[x],
+                                                                          reverse=True)[0:max_size]]
+            logging.info("User {} done.".format(user_id))
 
         return recommend_dict
 
@@ -154,7 +170,5 @@ if __name__ == "__main__":
     logging.info("Number of items consumed per user: {}".format(1.0 * user_watch_time_matrix.count_nonzero() / user_num))
     cf_model = CF(user_watch_time_matrix, user_num, item_num)
 
-    cf_model.fit()
-    # similarity_matrix = sp.load_npz("..\\tmp\\item_similarity_matrix.npz")
-    # print(similarity_matrix.shape)
-    # recommend_dict = cf_model.recommend()
+    # cf_model.fit()
+    recommend_dict = cf_model.recommend()
