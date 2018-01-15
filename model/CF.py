@@ -47,7 +47,7 @@ class CF(object):
             self.item_similarity_matrix = sp.dok_matrix((self.item_num, self.item_num), dtype=np.float64)
 
             num_cores = multiprocessing.cpu_count()
-            Parallel(n_jobs=num_cores)(delayed(self.pearson_of_item)(item_id) for item_id in range(self.item_num))
+            Parallel(n_jobs=num_cores, backend="threading")(delayed(self.pearson_of_item)(item_id) for item_id in range(self.item_num))
             # for item_id in range(self.item_num):
             #     self.pearson_of_item(item_id)
 
@@ -146,4 +146,6 @@ if __name__ == "__main__":
     cf_model = CF(user_watch_time_matrix, user_num, item_num)
 
     cf_model.fit()
+    similarity_matrix = sp.load_npz("..\\tmp\\item_similarity_matrix.npz")
+    print(similarity_matrix.shape)
     # recommend_dict = cf_model.recommend()
