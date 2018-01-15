@@ -3,19 +3,36 @@ import numpy as np
 import scipy.sparse as sp
 from DataProvider import DataLoader
 import logging
+from joblib import Parallel, delayed
+import multiprocessing
 
 
 class CF(object):
     def __init__(self, user_item_record, user_num, item_num):
         self.user_num = user_num
         self.item_num = item_num
-        self.user_item_matrix = self._parse_dict_to_matrix(user_item_record) \
+        self.user_item_matrix_csc = self._parse_dict_to_matrix(user_item_record) \
             if isinstance(user_item_record, dict) else user_item_record
+        self.user_item_matrix_csr = self.user_item_matrix_csc.tocsr()
 
         self.item_similarity_matrix = None
         self.user_similarity_matrix = None
         self._item_mean = None
         self._item_std = None
+
+    @property
+    def item_mean(self):
+        if self._item_mean is None:
+            self._item_mean = np.mean(self.user_item_matrix_csc, axis=0)
+            self._item_mean = self._item_mean.reshape((self.item_num, 1))
+        return self._item_mean
+
+    @property
+    def item_std(self):
+        if self._item_std is None:
+            self._item_std = np.sqrt(np.sum(self.user_item_matrix_csc.power(2), axis=0).reshape((self.item_num, 1)) -
+                                     self.user_num * np.power(self.item_mean, 2))
+        return self._item_std
 
     def fit(self, user_based=False, K=100):
         """
@@ -28,47 +45,45 @@ class CF(object):
         else:
             logging.info("Start calculating item-similarity matrix.")
             self.item_similarity_matrix = sp.dok_matrix((self.item_num, self.item_num), dtype=np.float64)
-            user_item_matrix_csc = self.user_item_matrix.tocsc()
-            user_item_matrix_csr = self.user_item_matrix.tocsr()
 
-            item_mean = np.mean(self.user_item_matrix, axis=0)
-            item_std = np.sqrt(np.sum(self.user_item_matrix.power(2), axis=0) - self.user_num * np.power(item_mean, 2))
-            item_mean = item_mean.reshape((self.item_num, 1))
-            item_std = item_std.reshape((self.item_num, 1))
+            num_cores = multiprocessing.cpu_count()
+            Parallel(n_jobs=num_cores)(delayed(self.pearson_of_item)(item_id) for item_id in range(self.item_num))
+            # for item_id in range(self.item_num):
+            #     self.pearson_of_item(item_id)
 
-            for item_id1 in range(self.item_num):
-                logging.debug("item {} start".format(item_id1))
-
-                user_bought_item1 = sp.find(user_item_matrix_csc.getcol(item_id1))[0]
-                item_id2_set = set()
-                for u in user_bought_item1:
-                    for i in sp.find(user_item_matrix_csr.getrow(u))[1]:
-                        if i > item_id1:
-                            item_id2_set.add(i)
-
-                for item_id2 in item_id2_set:
-                    self.item_similarity_matrix[item_id1, item_id2] = (self.user_item_matrix.getcol(item_id1).T.dot
-                                                                       (self.user_item_matrix.getcol(item_id2)) -
-                                                                       self.user_num * item_mean[item_id1] *
-                                                                       item_mean[item_id2]) / \
-                                                                      (item_std[item_id1] * item_std[item_id2])
-                    self.item_similarity_matrix[item_id2, item_id1] = self.item_similarity_matrix[item_id1, item_id2]
-
-                logging.debug("item {} done.".format(item_id1))
             logging.info("Item-similarity matrix done.")
             self.item_similarity_matrix = self.item_similarity_matrix.tocsr()
             sp.save_npz("..\\tmp\\item_similarity_matrix", self.item_similarity_matrix)
+
+    def pearson_of_item(self, item_id):
+        print("item {} start".format(item_id))
+
+        user_bought_item1 = sp.find(self.user_item_matrix_csc.getcol(item_id))[0]
+        _item_id_set = set()
+        for u in user_bought_item1:
+            for i in sp.find(self.user_item_matrix_csr.getrow(u))[1]:
+                if i > item_id:
+                    _item_id_set.add(i)
+
+        for _item_id in _item_id_set:
+            self.item_similarity_matrix[item_id, _item_id] = (self.user_item_matrix_csc.getcol(item_id).T.dot
+                                                              (self.user_item_matrix_csc.getcol(_item_id)) -
+                                                              self.user_num * self.item_mean[item_id] *
+                                                              self.item_mean[_item_id]) / \
+                                                              (self.item_std[item_id] * self.item_std[_item_id])
+            self.item_similarity_matrix[_item_id, item_id] = self.item_similarity_matrix[item_id, _item_id]
+
+        print("item {} done.".format(item_id))
 
     def recommend(self, TopK=20, K=20, max_size=100):
         recommend_dict = dict()
         logging.info("Start item-based CF: no. of item {}, no. of user {}".format(self.item_num, self.user_num))
         score_list = np.zeros(shape=(self.item_num, 1))
-        user_item_matrix_csr = self.user_item_matrix.tocsr()
         for user_id in range(self.user_num):
             logging.debug("User {} start".format(user_id))
 
-            top_rated_items = sorted(range(1, self.item_num), key=lambda x: user_item_matrix_csr[user_id, x], reverse=True)[0:TopK]
-            top_rated_scores = user_item_matrix_csr[user_id, top_rated_items]
+            top_rated_items = sorted(range(1, self.item_num), key=lambda x: self.user_item_matrix_csr[user_id, x], reverse=True)[0:TopK]
+            top_rated_scores = self.user_item_matrix_csr[user_id, top_rated_items]
             candidate_set = set()
             for item_id in top_rated_items:
                 for i in sorted(range(self.item_num), key=lambda x: self.item_similarity_matrix[item_id, x], reverse=True)[0:K]:
