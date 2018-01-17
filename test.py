@@ -51,7 +51,6 @@ class TopKTester(Tester):
         _dict = dict()
         with open(filename) as f:
             for l in f.readlines():
-                userid = int(l.strip()[0])
-                _dict[userid] = map(lambda x: tuple(map(lambda y: int(y), x.split(","))),
-                                    l.strip()[1][2:-2].split("),("))
+                user_id = int(l.strip()[0])
+                _dict[user_id] = map(lambda x: tuple(map(lambda y: int(y), x.split(":"))), l.strip()[1].split(" "))
         return _dict
