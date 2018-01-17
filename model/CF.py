@@ -20,6 +20,7 @@ class CF(object):
         self._user_similarity_matrix = None
         self._item_mean = None
         self._item_std = None
+        self._user_mean = None
         self._recommend_dict = None
 
         self.similarity_matrix_size = None
@@ -42,6 +43,13 @@ class CF(object):
         return self._item_std
 
     @property
+    def user_mean(self):
+        if self._user_mean is None:
+            self._user_mean = np.mean(self.user_item_matrix_csc, axis=1)
+            self._user_mean = self._item_mean.reshape((self.user_num, 1))
+        return self._user_mean
+
+    @property
     def item_similarity_matrix(self):
         if self._item_similarity_matrix is None:
             row = np.array([np.ones(self.similarity_matrix_size, dtype=np.int32) * k for k in range(self.item_num)]) \
@@ -62,12 +70,12 @@ class CF(object):
         if self._recommend_dict is None:
             self._recommend_dict = dict()
             recommend_list_array = np.memmap(path.join("..", "tmp", "recommend_list_array"),
-                                             dtype=np.int32, shape=(self.user_num, self.recommend_size), mode="w+")
+                                             dtype=np.int32, shape=(self.user_num, self.recommend_size), mode="r")
             recommend_score_array = np.memmap(path.join("..", "tmp", "recommend_score_array"),
-                                              dtype=np.float64, shape=(self.user_num, self.recommend_size), mode="w+")
+                                              dtype=np.float64, shape=(self.user_num, self.recommend_size), mode="r")
             for user_id in range(self.user_num):
                 self._recommend_dict[user_id] = list()
-                for i in self.recommend_size:
+                for i in range(self.recommend_size):
                     if recommend_list_array[user_id, i] == -1:
                         break
                     self._recommend_dict[user_id].append(
@@ -152,7 +160,6 @@ class CF(object):
             for i in sorted(range(self.item_num), key=lambda x: self.item_similarity_matrix[item_id, x],
                             reverse=True)[0:self.recommend_neighbor_size]:
                 candidate_set.add(i)
-        logging.debug("candidate set size: {}".format(len(candidate_set)))
 
         for item_id in candidate_set:
             item_similarity_vec = self.item_similarity_matrix[item_id, top_rated_items]
@@ -161,19 +168,17 @@ class CF(object):
             score_list[item_id] = \
                 item_similarity_vec.dot(top_rated_scores.T)[0, 0] / np.sum(np.abs(item_similarity_vec))
 
-        if len(candidate_set) >= self.recommend_size:
-            recommend_list = sorted(range(self.item_num), key=lambda x: score_list[x],
-                                    reverse=True)[0: self.recommend_size]
+        if len(score_list) >= self.recommend_size:
+            recommend_list = sorted(range(self.item_num), key=lambda x: score_list[x], reverse=True)[0: self.recommend_size]
             recommend_score = [score_list[k] for k in recommend_list]
             recommend_list_array[user_id, :] = recommend_list
             recommend_score_array[user_id, :] = recommend_score
         else:
             recommend_list = sorted(range(self.item_num), key=lambda x: score_list[x], reverse=True)
             recommend_score = [score_list[k] for k in recommend_list]
-            recommend_list_array[user_id, 0:len(candidate_set)] = recommend_list
-            recommend_list_array[user_id, len(candidate_set):self.recommend_size] = \
-                [-1 for _ in range(self.recommend_size - len(candidate_set))]
-            recommend_score_array[user_id, 0:len(candidate_set)] = recommend_score
+            recommend_list_array[user_id, 0: len(score_list)] = recommend_list
+            recommend_list_array[user_id, len(score_list): self.recommend_size] = [-1 for _ in range(self.recommend_size - len(score_list))]
+            recommend_score_array[user_id, 0:len(score_list)] = recommend_score
         logging.info("User {} done.".format(user_id))
 
     def _parse_dict_to_matrix(self, user_item_dict, score=True):
@@ -224,4 +229,9 @@ if __name__ == "__main__":
 
     # cf_model.fit()
     cf_model.similarity_matrix_size = 100
-    recommend_dict = cf_model.recommend()
+    cf_model.recommend_neighbor_num = 20
+    cf_model.recommend_neighbor_size = 20
+    cf_model.recommend_size = 100
+    # recommend_dict = cf_model.recommend()
+    a = cf_model.recommend_dict
+    b = a

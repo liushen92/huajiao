@@ -58,7 +58,7 @@ class MatrixFactorization(object):
             item_emb = tf.nn.embedding_lookup(item_emb_matrix, self.item_idx, name="item_emb")
             item_bias = tf.nn.embedding_lookup(item_bias_matrix, self.item_idx, name="item_bias")
             self.loss = tf.reduce_mean(tf.square(self.user_item_score
-                                                 - tf.reduce_sum(tf.multiply(user_emb, item_emb))
+                                                 - tf.reduce_sum(tf.multiply(user_emb, item_emb), axis=1)
                                                  - user_bias
                                                  - item_bias)
                                        + self.lambda_value * (tf.add_n([tf.reduce_mean(tf.square(user_emb)),
@@ -67,7 +67,7 @@ class MatrixFactorization(object):
                                                                         tf.reduce_mean(tf.square(item_bias))])))
 
         with tf.name_scope("optimizer"):
-            self.optimizer = tf.train.GradientDescentOptimizer(self.learning_rate).minimize(self.loss)
+            self.optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
 
         return user_emb_matrix, user_bias_matrix, item_emb_matrix, item_bias_matrix
 
@@ -94,7 +94,7 @@ class MatrixFactorization(object):
         user_emb_matrix, user_bias_matrix, item_emb_matrix, item_bias_matrix = self.define_model()
         sess.run(tf.global_variables_initializer())
         for i in range(1, self.training_epochs + 1):
-            logging.info("training epochs {0}".format(i))
+            logging.info("training epochs {}".format(i))
             batch_gen = input_data.batch_generator(self.batch_size)
             self.run_epoch(sess, i, batch_gen)
 
