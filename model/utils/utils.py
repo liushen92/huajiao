@@ -1,5 +1,13 @@
 # coding: utf - 8
 import pickle
+import numpy as np
+import os
+
+
+def mkdir(file_path):
+    pardir = os.path.dirname(file_path)
+    if not os.path.exists(pardir):
+        os.mkdir(pardir)
 
 
 def save_dict(dict_to_save, filename):
@@ -30,3 +38,8 @@ def pickled_save(obj, filename):
 def pickle_load(filename):
     with open(filename, 'rb') as f:
         return pickle.load(f)
+
+
+def save_matrix(saved_matrix, file_path):
+    mkdir(file_path)
+    np.savetxt(file_path, saved_matrix, delimiter=",")
