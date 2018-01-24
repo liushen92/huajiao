@@ -1,15 +1,16 @@
 # coding: utf-8
 from model.utils.DataInterface import DataInterface
+from model.utils.constants import *
 import logging
 from os import path
 import numpy as np
 
 
 class MFDataProvider(DataInterface):
-    def __init__(self, path_to_train, path_to_save):
+    def __init__(self):
         super(MFDataProvider, self).__init__()
-        self.load_train(path_to_train, path_to_save)
-        self.user_watch_time = self._parse_dict_to_nparray(self.user_watch_time)
+        self.load_data(path.join(data_dir, "train_data"))
+        self.user_watch_time = self._parse_dict_to_nparray(self.user_anchor_behavior)
 
     def batch_generator(self, batch_size):
         """
@@ -26,22 +27,20 @@ class MFDataProvider(DataInterface):
             batch_data['user_item_score'] = self.user_watch_time[start_idx: end_idx, 2]
             yield batch_data
 
-    def _parse_dict_to_nparray(self, user_watch_time_dict):
+    def _parse_dict_to_nparray(self, user_anchor_behavior):
         user_watch_time_list = list()
-        for user_id in user_watch_time_dict:
-            for item_id in user_watch_time_dict[user_id]:
-                if user_watch_time_dict[user_id][item_id] < 30:
-                    continue
-                user_watch_time_list.append([user_id, item_id, self._convert_watch_time_to_score(user_watch_time_dict[user_id][item_id])])
+        for user_id in user_anchor_behavior:
+            for anchor_id in user_anchor_behavior[user_id]:
+                user_watch_time_list.append([user_id, anchor_id,
+                                             self._convert_watch_time_to_score(
+                                                 user_anchor_behavior[user_id][anchor_id][0])])
         return np.array(user_watch_time_list)
 
     def _convert_watch_time_to_score(self, watch_time):
-        if watch_time < 30:
-            return 0
         return np.log10(watch_time + 1)
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(filename)s:%(levelname)s:%(message)s',
                         datefmt='%Y-%m-%d %A %H:%M:%S')
-    mf_data_provider = MFDataProvider(path.join("..", "..", "data", "train_data"), path.join("..", "..", "tmp"))
+    mf_data_provider = MFDataProvider()

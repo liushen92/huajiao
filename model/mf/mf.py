@@ -1,9 +1,11 @@
 # coding: utf-8
 import tensorflow as tf
 import logging
-import model.mf.MFDataProvider as MFDataProvider
 from os import path
+import model.mf.MFDataProvider as MFDataProvider
 from model.utils import utils
+from model.utils.constants import *
+from model.mf.configs import configs
 
 
 class MatrixFactorization(object):
@@ -83,7 +85,10 @@ class MatrixFactorization(object):
                                                                         tf.reduce_mean(tf.square(item_bias))])))
 
         with tf.name_scope("optimizer"):
-            self.optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
+            if self.optimize_method == "adam":
+                self.optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
+            elif self.optimize_method == "sgd":
+                self.optimizer = tf.train.GradientDescentOptimizer(self.learning_rate).minimize(self.loss)
 
         return user_emb_matrix, user_bias_matrix, item_emb_matrix, item_bias_matrix
 
@@ -108,7 +113,7 @@ class MatrixFactorization(object):
 
     def fit(self, sess, input_data, configs):
         self.user_num = input_data.user_num
-        self.item_num = input_data.item_num
+        self.item_num = input_data.anchor_num
         user_emb_matrix, user_bias_matrix, item_emb_matrix, item_bias_matrix = self.define_model(configs)
         sess.run(tf.global_variables_initializer())
         logging.info("Start training")
@@ -131,11 +136,9 @@ class MatrixFactorization(object):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(filename)s:%(levelname)s:%(message)s',
                         datefmt='%Y-%m-%d %A %H:%M:%S', )
-    input_data = MFDataProvider.MFDataProvider(path.join("..", "..", "data", "train_data"),
-                                               path.join("..", "..", "tmp"))
+    input_data = MFDataProvider.MFDataProvider()
     model = MatrixFactorization()
 
-    from . import configs
-    configs['save_path'] = path.join("..", "..", "tmp")
+    configs['save_path'] = tmp_dir
     with tf.Session() as sess:
-        model.fit(sess=sess, input_data=input_data, configs=configs.configs)
+        model.fit(sess=sess, input_data=input_data, configs=configs)
