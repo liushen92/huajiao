@@ -1,7 +1,6 @@
 # coding: utf-8
 import numpy as np
 import scipy.sparse as sp
-# from DataProvider import DataLoader
 import logging
 from joblib import Parallel, delayed
 import multiprocessing
@@ -233,5 +232,5 @@ if __name__ == "__main__":
     cf_model.recommend_neighbor_size = 20
     cf_model.recommend_size = 100
     # recommend_dict = cf_model.recommend()
-    a = cf_model.recommend_dict
-    b = a
+    dl = DataLoader()
+    dl.save_rec_dict(cf_model.recommend_dict, path.join("..", "tmp", "cf_recommend"))

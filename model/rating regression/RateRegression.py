@@ -20,10 +20,10 @@ class RateRegression(object):
         self.item_idx = None
         self.user_item_score = None
         self.loss = None
+        self.pred = None
         self.optimizer = None
 
     def define_model(self, configs):
-        parameters = dict()
         with tf.name_scope("placeholders"):
             self.user_idx = tf.placeholder(dtype=tf.int32, shape=[None], name="user_idx")
             self.item_idx = tf.placeholder(dtype=tf.int32, shape=[None], name="item_idx")
@@ -41,26 +41,31 @@ class RateRegression(object):
                 name="item_emb_w"
             )
 
+        parameters = dict()
         with tf.name_scope("forward_NN"):
             parameters["h0"] = tf.layers.dense(tf.concat([tf.nn.embedding_lookup(user_emb_matrix, self.user_idx),
                                                           tf.nn.embedding_lookup(item_emb_matrix, self.item_idx)], 1),
-                                               configs.layers[0],
-                                               activation=configs.activation)
+                                               configs["layers"][0],
+                                               activation=configs["activation"])
 
-            for i in range(configs.layers_num - 1):
+            for i in range(len(configs["layers"]) - 1):
                 parameters["h" + str(i + 1)] = tf.layers.dense(parameters["h" + str(i)],
-                                                               configs.layers[i + 1],
-                                                               activation=configs.activation)
+                                                               configs["layers"][i + 1],
+                                                               activation=configs["activation"])
 
         with tf.name_scope("prediction"):
-            self.pred = tf.layers.dense(parameters["h" + str(configs.layers[-1])], 1, activation=None, name="prediction")
+            self.pred = tf.layers.dense(parameters["h" + str(configs["layers"][-1])], 1, activation=None, name="prediction")
             self.loss = tf.losses.mean_squared_error(self.user_item_score, self.pred)
 
         with tf.name_scope("optimizer"):
             self.optimizer = tf.train.GradientDescentOptimizer(learning_rate=configs.learning_rate).minimize(self.loss)
 
     def create_feed_dict(self, input_batch):
-        pass
+        return {
+            self.user_idx: input_batch["user_idx"],
+            self.item_idx: input_batch["item_idx"],
+            self.user_item_score: input_batch["user_item_score"]
+        }
 
     def run_epoch(self, sess, epoch_idx, batch_gen):
         total_loss = 0.0

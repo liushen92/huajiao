@@ -1,12 +1,11 @@
 # coding: utf-8
-from model.utils.DataLoader import DataLoader
-from random import shuffle
+from model.utils.DataInterface import DataInterface
 import logging
 from os import path
 import numpy as np
 
 
-class MFDataProvider(DataLoader):
+class MFDataProvider(DataInterface):
     def __init__(self, path_to_train, path_to_save):
         super(MFDataProvider, self).__init__()
         self.load_train(path_to_train, path_to_save)
