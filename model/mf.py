@@ -3,9 +3,42 @@ import tensorflow as tf
 import numpy as np
 import logging
 from os import path
-import MFDataProvider
-from model.utils.constants import *
-from configs import configs
+
+from .constants import *
+from .DataInterface import DataInterface
+
+class MFDataProvider(DataInterface):
+    def __init__(self):
+        super(MFDataProvider, self).__init__()
+        self.load_data(path.join(data_dir, "train_data"))
+        self.user_watch_time = self._parse_dict_to_nparray(self.user_anchor_behavior)
+
+    def batch_generator(self, batch_size):
+        """
+        :param batch_size: size of mini-batch
+        :return: batch_data: a generator for generate batch
+        """
+        # shuffle(self.user_watch_time)
+        for i in range(0, len(self.user_watch_time), batch_size):
+            batch_data = dict()
+            start_idx = i
+            end_idx = min(i + batch_size, len(self.user_watch_time))
+            batch_data['user_idx'] = self.user_watch_time[start_idx: end_idx, 0].astype(np.int32)
+            batch_data['item_idx'] = self.user_watch_time[start_idx: end_idx, 1].astype(np.int32)
+            batch_data['user_item_score'] = self.user_watch_time[start_idx: end_idx, 2]
+            yield batch_data
+
+    def _parse_dict_to_nparray(self, user_anchor_behavior):
+        user_watch_time_list = list()
+        for user_id in user_anchor_behavior:
+            for anchor_id in user_anchor_behavior[user_id]:
+                user_watch_time_list.append([user_id, anchor_id,
+                                             self._convert_watch_time_to_score(
+                                                 user_anchor_behavior[user_id][anchor_id][0])])
+        return np.array(user_watch_time_list)
+
+    def _convert_watch_time_to_score(self, watch_time):
+        return np.log10(watch_time + 1)
 
 
 class MatrixFactorization(object):
@@ -144,28 +177,10 @@ class MatrixFactorization(object):
 
         rec_dict = dict()
         item_list = np.array(range(self.item_num))
-        for user_id in range(self.user_num):
+        for user_id in range(10):
             logging.info("recommend for user {}".format(user_id))
             feed_dict = {self.user_idx: np.array([user_id] * self.item_num), self.item_idx: item_list}
             rec_score = sess.run(self.pred, feed_dict=feed_dict)
             rec_item_list = sorted(range(self.item_num), key=lambda x: rec_score[x], reverse=True)[0:max_size]
             rec_dict[user_id] = [(x, float(rec_score[x])) for x in rec_item_list]
         return rec_dict
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(filename)s:%(levelname)s:%(message)s',
-                        datefmt='%Y-%m-%d %A %H:%M:%S', )
-    input_data = MFDataProvider.MFDataProvider()
-    model = MatrixFactorization()
-
-    configs['save_path'] = path.join(tmp_dir, "mf")
-    with tf.Session() as sess:
-        model.fit(sess=sess, input_data=input_data, configs=configs)
-        rec_dict = model.recommend(sess, 20)
-        with open(path.join(tmp_dir, "mf_test"), 'w') as f:
-            for u in rec_dict:
-                f.write(str(u) + '\t')
-                for i, s in rec_dict[u]:
-                    f.write(str(i) + ':' + str(s) + " ")
-                f.write("\n")
