@@ -124,7 +124,7 @@ class MatrixFactorization(object):
 
         with tf.name_scope("optimizer"):
             if self.optimize_method == "adam":
-                self.optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
+                self.optimizer = tf.train.AdamOptimizer().minimize(self.loss)
             elif self.optimize_method == "sgd":
                 self.optimizer = tf.train.GradientDescentOptimizer(self.learning_rate).minimize(self.loss)
 
@@ -177,7 +177,7 @@ class MatrixFactorization(object):
 
         rec_dict = dict()
         item_list = np.array(range(self.item_num))
-        for user_id in range(10):
+        for user_id in range(self.item_num):
             logging.info("recommend for user {}".format(user_id))
             feed_dict = {self.user_idx: np.array([user_id] * self.item_num), self.item_idx: item_list}
             rec_score = sess.run(self.pred, feed_dict=feed_dict)
