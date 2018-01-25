@@ -61,16 +61,25 @@ class RateRegression(object):
 
         parameters = dict()
         with tf.name_scope("forward_NN"):
+            regularizer = tf.contrib.layers.l2_regularizer(scale=self.lambda_value)
+            initializer = tf.contrib.layers.xavier_initializer(uniform=False)
+
             user_emb = tf.nn.embedding_lookup(user_emb_matrix, self.user_idx)
             item_emb = tf.nn.embedding_lookup(item_emb_matrix, self.item_idx)
             parameters["h0"] = tf.layers.dense(tf.concat([user_emb, item_emb], 1),
                                                configs["layers"][0],
-                                               activation=configs["activation"])
+                                               activation=configs["activation"],
+                                               kernel_regularizer=regularizer,
+                                               bias_regularizer=regularizer,
+                                               kernel_initializer=initializer)
 
             for i in range(len(configs["layers"]) - 1):
                 parameters["h" + str(i + 1)] = tf.layers.dense(parameters["h" + str(i)],
                                                                configs["layers"][i + 1],
-                                                               activation=configs["activation"])
+                                                               activation=configs["activation"],
+                                                               kernel_regularizer=regularizer,
+                                                               bias_regularizer=regularizer,
+                                                               kernel_initializer=initializer)
 
         with tf.name_scope("loss"):
             self.pred = tf.layers.dense(parameters["h" + str(len(configs["layers"]) - 1)], 1,

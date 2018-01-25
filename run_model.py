@@ -34,6 +34,9 @@ rr_configs = {
 }
 
 if __name__ == "__main__":
+    import os
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(filename)s:%(levelname)s:%(message)s',
                         datefmt='%Y-%m-%d %A %H:%M:%S', )
 
@@ -47,7 +50,8 @@ if __name__ == "__main__":
 
     model = rr.RateRegression()
     rr_configs['save_path'] = os.path.join(tmp_dir, "RateRegression")
-    with tf.Session() as sess:
+    gpu_options = tf.GPUOptions(allow_growth=True)
+    with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
         model.fit(sess=sess, input_data=input_data, configs=rr_configs)
         rec_dict = model.recommend(sess, 30)
         input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=os.path.join(data_dir, "rr_rec_list"))
