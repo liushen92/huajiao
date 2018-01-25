@@ -4,9 +4,8 @@ import numpy as np
 import logging
 from os import path
 import MFDataProvider
-from model.utils import utils
 from model.utils.constants import *
-from configs import *
+from configs import configs
 
 
 class MatrixFactorization(object):
@@ -152,6 +151,7 @@ class MatrixFactorization(object):
             rec_item_list = sorted(range(self.item_num), key=lambda x: rec_score[x], reverse=True)[0:max_size]
             rec_dict[user_id] = [(x, float(rec_score[x])) for x in rec_item_list]
         return rec_dict
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(filename)s:%(levelname)s:%(message)s',
