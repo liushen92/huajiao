@@ -3,10 +3,10 @@ import tensorflow as tf
 import numpy as np
 import logging
 from os import path
-import model.mf.MFDataProvider as MFDataProvider
+import MFDataProvider
 from model.utils import utils
 from model.utils.constants import *
-from model.mf.configs import configs
+from configs import *
 
 
 class MatrixFactorization(object):
