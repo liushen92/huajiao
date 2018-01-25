@@ -70,10 +70,14 @@ class RateRegression(object):
             for i in range(len(configs["layers"]) - 1):
                 parameters["h" + str(i + 1)] = tf.layers.dense(parameters["h" + str(i)],
                                                                configs["layers"][i + 1],
-                                                               activation=configs["activation"])
+                                                               activation=configs["activation"],
+                                                               kernel_initializer=tf.contrib.layers.xavier_initializer)
 
         with tf.name_scope("prediction"):
-            self.pred = tf.layers.dense(parameters["h" + str(len(configs["layers"]) - 1)], 1, activation=None, name="prediction")
+            self.pred = tf.layers.dense(parameters["h" + str(len(configs["layers"]) - 1)], 1,
+                                        activation=None,
+                                        name="prediction",
+                                        kernel_initializer=tf.contrib.layers.xavier_initializer)
             self.loss = tf.losses.mean_squared_error(tf.reshape(self.user_item_score, [-1, 1]), self.pred)
             self.loss += self.lambda_value * (tf.add_n([tf.reduce_mean(tf.square(user_emb)), tf.reduce_mean(tf.square(item_emb))]))
 
@@ -111,6 +115,7 @@ class RateRegression(object):
             self.run_epoch(sess, i, batch_gen)
         logging.info("Training complete and saving...")
 
+
     def recommend_per_user(self, sess, userid):
         itemid_list = list()
         score_list = [(itemid, sess.run(self.pred, feed_dict={self.item_idx: itemid, self.user_idx: userid}))
@@ -129,7 +134,6 @@ if __name__ == "__main__":
                         datefmt='%Y-%m-%d %A %H:%M:%S', )
     input_data = MFDataProvider()
     model = RateRegression()
-
-    configs['save_path'] = tmp_dir
+    configs['save_path'] = os.path.join(tmp_dir, "RateRegression")
     with tf.Session() as sess:
         model.fit(sess=sess, input_data=input_data, configs=configs)

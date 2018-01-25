@@ -1,5 +1,6 @@
 # coding: utf-8
 import tensorflow as tf
+import numpy as np
 import logging
 from os import path
 import model.mf.MFDataProvider as MFDataProvider
@@ -27,8 +28,13 @@ class MatrixFactorization(object):
         self.user_item_score = None
         self.user_idx = None
         self.item_idx = None
+        self.item_emb_matrix = None
+        self.item_bias_matrix = None
+        self.user_emb_matrix = None
+        self.user_bias_matrix = None
         self.loss = None
         self.optimizer = None
+        self.pred = None
 
     def _parse_config(self, configs):
         self.embedding_size = configs['embedding_size']
@@ -48,37 +54,37 @@ class MatrixFactorization(object):
             self.item_idx = tf.placeholder(dtype=tf.int32, shape=[None], name='item_idx')
             self.user_item_score = tf.placeholder(dtype=tf.float32, shape=[None], name='user_item_score')
 
-        with tf.name_scope("embedding_matrix"):
-            user_emb_matrix = tf.Variable(
+        with tf.name_scope("embedding"):
+            self.user_emb_matrix = tf.Variable(
                 tf.random_uniform([self.user_num, self.embedding_size],
                                   -self.emb_init_value, self.emb_init_value),
                 name="user_emb_w"
             )
-            user_bias_matrix = tf.Variable(
+            self.user_bias_matrix = tf.Variable(
                 tf.random_uniform([self.user_num, 1],
                                   -self.emb_init_value, self.emb_init_value),
                 name="user_emb_b"
             )
-            item_emb_matrix = tf.Variable(
+            self.item_emb_matrix = tf.Variable(
                 tf.random_uniform([self.item_num, self.embedding_size],
                                   -self.emb_init_value, self.emb_init_value),
                 name="item_emb_w"
             )
-            item_bias_matrix = tf.Variable(
+            self.item_bias_matrix = tf.Variable(
                 tf.random_uniform([self.item_num, 1],
                                   -self.emb_init_value, self.emb_init_value),
                 name="item_emb_b"
             )
 
         with tf.name_scope("loss"):
-            user_emb = tf.nn.embedding_lookup(user_emb_matrix, self.user_idx, name="user_emb")
-            user_bias = tf.nn.embedding_lookup(user_bias_matrix, self.user_idx, name="user_bias")
-            item_emb = tf.nn.embedding_lookup(item_emb_matrix, self.item_idx, name="item_emb")
-            item_bias = tf.nn.embedding_lookup(item_bias_matrix, self.item_idx, name="item_bias")
-            self.loss = tf.reduce_mean(tf.square(self.user_item_score
-                                                 - tf.reduce_sum(tf.multiply(user_emb, item_emb), axis=1)
-                                                 - user_bias
-                                                 - item_bias)
+            user_emb = tf.nn.embedding_lookup(self.user_emb_matrix, self.user_idx, name="user_emb")
+            user_bias = tf.nn.embedding_lookup(self.user_bias_matrix, self.user_idx, name="user_bias")
+            item_emb = tf.nn.embedding_lookup(self.item_emb_matrix, self.item_idx, name="item_emb")
+            item_bias = tf.nn.embedding_lookup(self.item_bias_matrix, self.item_idx, name="item_bias")
+            self.pred = tf.add_n([tf.reduce_sum(tf.multiply(user_emb, item_emb), axis=1, keep_dims=True),
+                                  user_bias,
+                                  item_bias], name="prediction")
+            self.loss = tf.reduce_mean(tf.square(self.user_item_score - self.pred)
                                        + self.lambda_value * (tf.add_n([tf.reduce_mean(tf.square(user_emb)),
                                                                         tf.reduce_mean(tf.square(item_emb)),
                                                                         tf.reduce_mean(tf.square(user_bias)),
@@ -89,8 +95,6 @@ class MatrixFactorization(object):
                 self.optimizer = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss)
             elif self.optimize_method == "sgd":
                 self.optimizer = tf.train.GradientDescentOptimizer(self.learning_rate).minimize(self.loss)
-
-        return user_emb_matrix, user_bias_matrix, item_emb_matrix, item_bias_matrix
 
     def run_epoch(self, sess, epoch_idx, batch_gen):
         total_loss = 0.0
@@ -114,24 +118,40 @@ class MatrixFactorization(object):
     def fit(self, sess, input_data, configs):
         self.user_num = input_data.user_num
         self.item_num = input_data.anchor_num
-        user_emb_matrix, user_bias_matrix, item_emb_matrix, item_bias_matrix = self.define_model(configs)
+        self.define_model(configs)
         sess.run(tf.global_variables_initializer())
+        saver = tf.train.Saver()
         logging.info("Start training")
         for i in range(1, self.training_epochs + 1):
             logging.info("training epochs {}".format(i))
             batch_gen = input_data.batch_generator(self.batch_size)
             self.run_epoch(sess, i, batch_gen)
-
         logging.info("Training complete and saving...")
-        user_emb_matrix, user_bias_matrix, item_emb_matrix, item_bias_matrix = sess.run([user_emb_matrix,
-                                                                                         user_bias_matrix,
-                                                                                         item_emb_matrix,
-                                                                                         item_bias_matrix])
-        utils.save_matrix(user_emb_matrix, path.join(configs['save_path'], "user-emb-matrix"))
-        utils.save_matrix(item_emb_matrix, path.join(configs['save_path'], "item-emb-matrix"))
-        utils.save_matrix(user_bias_matrix, path.join(configs['save_path'], "user-bias-matrix"))
-        utils.save_matrix(item_bias_matrix, path.join(configs['save_path'], "item-bias-matrix"))
+        saver.save(sess, path.join(configs["save_path"], configs["model_name"]))
 
+    def recommend(self, sess, max_size, model_path=None, model_name=None):
+        if self.loss is None:
+            if model_path is None:
+                logging.error("Saving path of matrix factorization model should be given.")
+                return
+            saver = tf.train.import_meta_graph(path.join(model_path, model_name))
+            saver.restore(sess, tf.train.latest_checkpoint(model_path))
+            graph = tf.get_default_graph()
+            self.user_idx = graph.get_tensor_by_name("placeholders/user_idx")
+            self.item_idx = graph.get_tensor_by_name("placeholders/item_idx")
+            self.pred = graph.get_tensor_by_name("loss/prediction")
+            self.user_num = tf.shape(graph.get_tensor_by_name("embedding/user_bias"))[0]
+            self.item_num = tf.shape(graph.get_tensor_by_name("embedding/item_bias"))[0]
+
+        rec_dict = dict()
+        item_list = np.array(range(self.item_num))
+        for user_id in range(self.user_num):
+            logging.info("recommend for user {}".format(user_id))
+            feed_dict = {self.user_idx: np.array([user_id] * self.item_num), self.item_idx: item_list}
+            rec_score = sess.run(self.pred, feed_dict=feed_dict)
+            rec_item_list = sorted(range(self.item_num), key=lambda x: rec_score[x], reverse=True)[0:max_size]
+            rec_dict[user_id] = [(x, float(rec_score[x])) for x in rec_item_list]
+        return rec_dict
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(filename)s:%(levelname)s:%(message)s',
@@ -139,6 +159,13 @@ if __name__ == "__main__":
     input_data = MFDataProvider.MFDataProvider()
     model = MatrixFactorization()
 
-    configs['save_path'] = tmp_dir
+    configs['save_path'] = path.join(tmp_dir, "mf")
     with tf.Session() as sess:
         model.fit(sess=sess, input_data=input_data, configs=configs)
+        rec_dict = model.recommend(sess, 20)
+        with open(path.join(tmp_dir, "mf_test"), 'w') as f:
+            for u in rec_dict:
+                f.write(str(u) + '\t')
+                for i, s in rec_dict[u]:
+                    f.write(str(i) + ':' + str(s) + " ")
+                f.write("\n")
