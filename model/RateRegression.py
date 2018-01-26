@@ -107,7 +107,8 @@ class RateRegression(object):
                                      feed_dict=self.create_feed_dict(input_batch))
             total_loss += loss_batch
             if i % self.display_step == 0:
-                print('Average loss at epoch {} step {}: {:5.6f}'.format(epoch_idx, i, total_loss / self.display_step))
+                logging.info('Average loss at epoch {} step {}: {:5.6f}'
+                             .format(epoch_idx, i, total_loss / self.display_step))
                 total_loss = 0.0
 
     def fit(self, sess, input_data, configs):
@@ -140,7 +141,7 @@ class RateRegression(object):
 
         rec_dict = dict()
         item_list = np.array(range(self.item_num))
-        for user_id in range(self.item_num):
+        for user_id in range(self.user_num):
             logging.info("recommend for user {}".format(user_id))
             feed_dict = {self.user_idx: np.array([user_id] * self.item_num), self.item_idx: item_list}
             rec_score = sess.run(self.pred, feed_dict=feed_dict)
