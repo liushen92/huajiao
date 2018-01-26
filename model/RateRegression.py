@@ -73,16 +73,16 @@ class RateRegression(object):
                                                bias_regularizer=regularizer,
                                                kernel_initializer=initializer)
 
-            for i in range(len(configs["layers"]) - 1):
+            for i in range(len(configs["layers"])):
                 parameters["h" + str(i + 1)] = tf.layers.dense(parameters["h" + str(i)],
-                                                               configs["layers"][i + 1],
+                                                               configs["layers"][i],
                                                                activation=configs["activation"],
                                                                kernel_regularizer=regularizer,
                                                                bias_regularizer=regularizer,
                                                                kernel_initializer=initializer)
 
         with tf.name_scope("loss"):
-            self.pred = tf.layers.dense(parameters["h" + str(len(configs["layers"]) - 1)], 1,
+            self.pred = tf.layers.dense(parameters["h" + str(len(configs["layers"]))], 1,
                                         activation=None,
                                         name="prediction")
             self.loss = tf.losses.mean_squared_error(tf.reshape(self.user_item_score, [-1, 1]), self.pred)
@@ -104,7 +104,7 @@ class RateRegression(object):
         for input_batch in batch_gen:
             i += 1
             loss_batch, pred, _ = sess.run([self.loss, self.pred, self.optimizer],
-                                     feed_dict=self.create_feed_dict(input_batch))
+                                           feed_dict=self.create_feed_dict(input_batch))
             total_loss += loss_batch
             if i % self.display_step == 0:
                 logging.info('Average loss at epoch {} step {}: {:5.6f}'
