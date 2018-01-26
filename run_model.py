@@ -5,53 +5,60 @@ import tensorflow as tf
 import model.mf as mf
 import model.RateRegression as rr
 from model.constants import *
+from model.DataInterface import DataInterface
+import argparse
+
+def parse_cmd():
+    parser = argparse.ArgumentParser(description="huajiao")
+    parser.add_argument("--model", type=str, metavar="model_type", help="specify model")
+    parser.add_argument("--configs", type=str, metavar="config_file", help="specify file for specifying configs")
+    # parser.add_argument("--model_name", str, metavar="model_name")
+    # parser.add_argument("-save", str)
+    # parser.add_argument("-rec_dict", str)
+    # parser.add_argument("-max_size", type=int, default=30)
+
+    args = parser.parse_args()
+    model_type = args.model
+    configs = __import__(args.configs).configs
+
+    return model_type, configs
 
 
-mf_configs = {
-    'embedding_size': 256,
-    'learning_rate': 0.01,
-    'training_epochs': 10,
-    'self.batch_size': 256,
-    'emb_init_value': 1,
-    'lambda_value': 0.00001,
-    'display_step': 100,
-    'optimize_method': 'adam',
-    'model_name': "mf_model"
-}
+def run_mf(sess, configs):
+    input_data = mf.MFDataProvider()
+    model = mf.MatrixFactorization()
+    model.fit(sess=sess, input_data=input_data, configs=configs)
+    rec_dict = model.recommend(sess, configs["max_size"])
+    input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=configs["rec_dict"])
 
-rr_configs = {
-    "user_embedding_size": 256,
-    "item_embedding_size": 256,
-    "emb_init_value": 1,
-    "display_step": 100,
-    "training_epochs": 10,
-    "batch_size": 256,
-    "learning_rate": 0.1,
-    "lambda_value": 0.00001,
-    "layers": [512, 256, 128],
-    "activation": tf.nn.relu,
-    "model_name": "rr_model"
-}
+
+def run_rr(sess, configs):
+    input_data = mf.MFDataProvider()
+    model = rr.RateRegression()
+    model.fit(sess=sess, input_data=input_data, configs=configs)
+    rec_dict = model.recommend(sess, configs["max_size"])
+    input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=configs["rec_dict"])
+
+
+def generate_test_data(filename):
+    input_data = DataInterface()
+    input_data.generate_test_data(os.path.join(data_dir, "test_data"),
+                                  os.path.join(data_dir, filename))
+
 
 if __name__ == "__main__":
-    import os
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s %(filename)s:%(levelname)s:%(message)s',
+                        datefmt='%Y-%m-%d %A %H:%M:%S')
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(filename)s:%(levelname)s:%(message)s',
-                        datefmt='%Y-%m-%d %A %H:%M:%S', )
-
-    input_data = mf.MFDataProvider()
-#    model = mf.MatrixFactorization()
-#    mf_configs['save_path'] = os.path.join(tmp_dir, "mf")
-#    with tf.Session() as sess:
-#        model.fit(sess=sess, input_data=input_data, configs=mf_configs)
-#        rec_dict = model.recommend(sess, 30)
-#        input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=os.path.join(data_dir, "mf_rec_list"))
-
-    model = rr.RateRegression()
-    rr_configs['save_path'] = os.path.join(tmp_dir, "RateRegression")
     gpu_options = tf.GPUOptions(allow_growth=True)
+
+    model_type, configs = parse_cmd()
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
-        model.fit(sess=sess, input_data=input_data, configs=rr_configs)
-        rec_dict = model.recommend(sess, 30)
-        input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=os.path.join(data_dir, "rr_rec_list"))
+        if model_type == "mf":
+            run_mf(sess, configs)
+        elif model_type == "rr":
+            run_rr(sess, configs)
+        else:
+            logging.error("Unknown model.")
