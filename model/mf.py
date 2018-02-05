@@ -7,6 +7,7 @@ from os import path
 from .constants import *
 from .DataInterface import DataInterface
 
+
 class MFDataProvider(DataInterface):
     def __init__(self):
         super(MFDataProvider, self).__init__()
