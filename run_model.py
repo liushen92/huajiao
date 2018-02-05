@@ -4,9 +4,11 @@ import os
 import tensorflow as tf
 import model.mf as mf
 import model.RateRegression as rr
+import model.TagRateRegression as trr
 from model.constants import *
 from model.DataInterface import DataInterface
 import argparse
+
 
 def parse_cmd():
     parser = argparse.ArgumentParser(description="huajiao")
@@ -40,6 +42,14 @@ def run_rr(sess, configs):
     input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=configs["rec_dict"])
 
 
+def run_trr(sess, configs):
+    input_data = trr.TrrDataProvider()
+    model = trr.TagRateRegression()
+    model.fit(sess=sess, input_data=input_data, configs=configs)
+    rec_dict = model.recommend(sess, configs["max_size"])
+    input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=configs["rec_dict"])
+
+
 def generate_test_data(filename):
     input_data = DataInterface()
     input_data.generate_test_data(os.path.join(data_dir, "test_data"),
@@ -60,5 +70,7 @@ if __name__ == "__main__":
             run_mf(sess, configs)
         elif model_type == "rr":
             run_rr(sess, configs)
+        elif model_type == "trr":
+            run_trr(sess, configs)
         else:
             logging.error("Unknown model.")

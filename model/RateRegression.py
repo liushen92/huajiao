@@ -66,12 +66,7 @@ class RateRegression(object):
 
             user_emb = tf.nn.embedding_lookup(user_emb_matrix, self.user_idx)
             item_emb = tf.nn.embedding_lookup(item_emb_matrix, self.item_idx)
-            parameters["h0"] = tf.layers.dense(tf.concat([user_emb, item_emb], 1),
-                                               configs["layers"][0],
-                                               activation=configs["activation"],
-                                               kernel_regularizer=regularizer,
-                                               bias_regularizer=regularizer,
-                                               kernel_initializer=initializer)
+            parameters["h0"] = tf.concat([user_emb, item_emb], 1)
 
             for i in range(len(configs["layers"])):
                 parameters["h" + str(i + 1)] = tf.layers.dense(parameters["h" + str(i)],

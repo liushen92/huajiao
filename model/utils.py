@@ -18,7 +18,7 @@ def save_dict(dict_to_save, filename):
 
 def load_dict(filename):
     _dict = dict()
-    with open(filename, 'r') as f:
+    with open(filename, 'r', encoding="utf-8") as f:
         for l in f.readlines():
             key, value = l.strip().split('\t')
             _dict[key] = int(value)
