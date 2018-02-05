@@ -201,7 +201,7 @@ class TagRateRegression(object):
             self.optimizer = tf.train.AdamOptimizer().minimize(self.loss)
 
     def label_loss(self, truth, pred):
-        return tf.reduce_sum(tf.multiply(truth, pred), keep_dims=True, axis=1)
+        return -tf.reduce_sum(tf.multiply(truth, pred), keep_dims=True, axis=1)
 
     def create_feed_dict(self, input_batch):
         return {
