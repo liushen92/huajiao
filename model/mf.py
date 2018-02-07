@@ -12,14 +12,14 @@ class MFDataProvider(DataInterface):
     def __init__(self):
         super(MFDataProvider, self).__init__()
         self.load_data(path.join(data_dir, "train_data"))
-        self.user_watch_time = self._parse_dict_to_nparray(self.user_anchor_behavior)
+        self._parse_dict_to_nparray(self.user_anchor_behavior)
 
     def batch_generator(self, batch_size):
         """
         :param batch_size: size of mini-batch
         :return: batch_data: a generator for generate batch
         """
-        # shuffle(self.user_watch_time)
+        np.random.shuffle(self.user_watch_time)
         for i in range(0, len(self.user_watch_time), batch_size):
             batch_data = dict()
             start_idx = i
@@ -36,7 +36,7 @@ class MFDataProvider(DataInterface):
                 user_watch_time_list.append([user_id, anchor_id,
                                              self._convert_watch_time_to_score(
                                                  user_anchor_behavior[user_id][anchor_id][0])])
-        return np.array(user_watch_time_list)
+        self.user_watch_time = np.array(user_watch_time_list)
 
     def _convert_watch_time_to_score(self, watch_time):
         return np.log10(watch_time + 1)

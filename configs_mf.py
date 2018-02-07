@@ -3,7 +3,7 @@ from os import path
 
 
 configs = {
-    'embedding_size': 128,
+    'embedding_size': 256,
     'learning_rate': 0.01,
     'training_epochs': 10,
     'self.batch_size': 256,
