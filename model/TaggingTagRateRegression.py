@@ -263,13 +263,15 @@ class TaggingTagRateRegression(object):
             self.loss = tf.add_n([self.score_loss, self.label_lambda * self.user_label_loss, self.label_lambda * self.item_label_loss])
             self.loss += embedding_reg
 
-            self.tagging_loss = self.score_loss + self.tagging_lambda * tf.reduce_mean(
-                tf.nn.softmax_cross_entropy_with_logits(labels=self.tagging, logits=self.tagging_pred))
+            self.tagging_loss = self.tagging_lambda * tf.reduce_mean(tf.reduce_sum(
+                tf.nn.sigmoid_cross_entropy_with_logits(labels=self.tagging, logits=self.tagging_pred), axis=1))
             self.tagging_loss += embedding_reg
 
         with tf.name_scope("optimizer"):
             self.optimizer = tf.train.AdamOptimizer().minimize(self.loss)
             self.tagging_optimizer = tf.train.AdamOptimizer().minimize(self.tagging_loss)
+
+        return parameters
 
     def label_loss(self, truth, pred, mask):
         return tf.multiply(tf.nn.softmax_cross_entropy_with_logits(labels=truth, logits=pred), mask)
@@ -323,7 +325,7 @@ class TaggingTagRateRegression(object):
         self.user_num = input_data.user_num
         self.item_num = input_data.anchor_num
         self.label_num = input_data.label_num
-        self.define_model(configs)
+        parameters = self.define_model(configs)
         sess.run(tf.global_variables_initializer())
         saver = tf.train.Saver()
         logging.info("Start training")
@@ -331,7 +333,7 @@ class TaggingTagRateRegression(object):
             logging.info("training epochs {}".format(i))
             batch_gen = input_data.batch_generator(self.batch_size)
             tagging_batch_gen = input_data.tagging_batch_generator(self.batch_size)
-            # self.run_epoch(sess, i, batch_gen)
+            self.run_epoch(sess, i, batch_gen)
             self.run_tagging_epoch(sess, i, tagging_batch_gen)
         logging.info("Training complete and saving...")
         saver.save(sess, os.path.join(configs["save_path"],

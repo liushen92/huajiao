@@ -1,11 +1,12 @@
 # coding: utf-8
 import logging
-import os
 import tensorflow as tf
+import numpy as np
 import model.mf as mf
 import model.RateRegression as rr
 import model.TagRateRegression as trr
 import model.TaggingTagRateRegression as ttrr
+import model.CF as cf
 from model.constants import *
 from model.DataInterface import DataInterface
 import argparse
@@ -13,18 +14,26 @@ import argparse
 
 def parse_cmd():
     parser = argparse.ArgumentParser(description="huajiao")
-    parser.add_argument("--model", type=str, metavar="model_type", help="specify model")
-    parser.add_argument("--configs", type=str, metavar="config_file", help="specify file for specifying configs")
-    # parser.add_argument("--model_name", str, metavar="model_name")
-    # parser.add_argument("-save", str)
-    # parser.add_argument("-rec_dict", str)
-    # parser.add_argument("-max_size", type=int, default=30)
+    parser.add_argument("-model", type=str, metavar="model_type", help="specify model")
+    parser.add_argument("-configs", type=str, metavar="config_file", help="specify file for specifying configs")
+    parser.add_argument("-seed", type=int, metavar="seed", help="specify random seed")
+    parser.add_argument("-model_name", type=str)
+    parser.add_argument("-rec_dict", type=str)
+    parser.add_argument("-max_size", type=int)
 
     args = parser.parse_args()
     model_type = args.model
     configs = __import__(args.configs).configs
+    seed = args.seed
+    if args.model_name is not None:
+        configs["model_name"] = args.model_name
+        configs["save_path"] = os.path.join(tmp_dir, configs["model_name"])
+    if args.rec_dict is not None:
+        configs["rec_dict"] = os.path.join(data_dir, args.rec_dict)
+    if args.max_size is not None:
+        configs["max_size"] = args.max_size
 
-    return model_type, configs
+    return model_type, configs, seed
 
 
 def run_mf(sess, configs):
@@ -59,21 +68,43 @@ def run_ttrr(sess, configs):
     input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=configs["rec_dict"])
 
 
+def run_cf(configs):
+    configs["user_based"] = False
+    input_data = cf.CFDataProvider()
+    model = cf.CF()
+    model.fit(input_data, configs=configs)
+    rec_dict = model.recommend(configs["max_size"])
+    input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=configs["rec_dict"])
+
+
 def generate_test_data(filename):
     input_data = DataInterface()
     input_data.generate_test_data(os.path.join(data_dir, "test_data"),
                                   os.path.join(data_dir, filename))
 
 
-if __name__ == "__main__":
+def main():
+    # parse command line
+    model_type, configs, seed = parse_cmd()
+
+    # set logging format
     logging.basicConfig(level=logging.INFO,
                         format='%(asctime)s %(filename)s:%(levelname)s:%(message)s',
                         datefmt='%Y-%m-%d %A %H:%M:%S')
+
+    if model_type == "cf":
+        run_cf(configs)
+        return
+    # GPU setting of tf
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"
     gpu_options = tf.GPUOptions(allow_growth=True)
 
-    model_type, configs = parse_cmd()
+    # add seed to get reproducible result.
+    if seed is not None:
+        tf.set_random_seed(seed)
+        np.random.seed(seed)
+
     with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
         if model_type == "mf":
             run_mf(sess, configs)
@@ -85,3 +116,7 @@ if __name__ == "__main__":
             run_ttrr(sess, configs)
         else:
             logging.error("Unknown model.")
+
+
+if __name__ == "__main__":
+    main()
