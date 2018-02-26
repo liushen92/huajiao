@@ -12,6 +12,7 @@ configs = {
     "batch_size": 256,
     "learning_rate": 0.1,
     "lambda_value": 0.001,
+    "keep_prob_value": 0.75,
     "layers": [256, 128, 64],
     "activation": tf.nn.relu,
     "model_name": "RateRegression",

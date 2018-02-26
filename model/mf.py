@@ -39,6 +39,8 @@ class MFDataProvider(DataInterface):
         self.user_watch_time = np.array(user_watch_time_list)
 
     def _convert_watch_time_to_score(self, watch_time):
+        if watch_time < 10:
+            return 0
         return np.log10(watch_time + 1)
 
 

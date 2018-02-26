@@ -12,6 +12,7 @@ from .constants import *
 class CFDataProvider(DataInterface):
     def __init__(self):
         super(CFDataProvider, self).__init__()
+        self.load_data(path.join(data_dir, "train_data"))
         self.item_num = self.anchor_num
         self.ui_matrix_csc = self._parse_dict_to_matrix(self.user_anchor_behavior)
         self.ui_matrix_csr = self.ui_matrix_csc.tocsr()
@@ -26,7 +27,7 @@ class CFDataProvider(DataInterface):
         return ui_matrix
 
     def _convert_watch_time_to_score(self, watch_time):
-        if watch_time < 30:
+        if watch_time < 10:
             return 0
         return np.log10(watch_time + 1)
 
@@ -62,7 +63,7 @@ class CF(object):
         self.sim_neighbor_size = configs["sim_neighbor_size"]
         self.user_liked_item_size = configs["user_liked_item_size"]
 
-    def fit(self, input_data, configs):
+    def fit(self, input_data, configs, sim_matrix=False):
         self.item_num = input_data.item_num
         self.user_num = input_data.user_num
         self.ui_matrix_csc = input_data.ui_matrix_csc
@@ -73,23 +74,26 @@ class CF(object):
         if user_based:
             pass
         else:
-            logging.info("Start calculating item-sim matrix.")
-            item_sim_matrix_id = np.memmap(path.join(tmp_dir, "item_sim_matrix_id"),
-                                           dtype=np.int32,
-                                           shape=(self.item_num, self.sim_neighbor_size),
-                                           mode="w+")
-            item_sim_matrix_val = np.memmap(path.join(tmp_dir, "item_sim_matrix_val"),
-                                            dtype=np.float64,
-                                            shape=(self.item_num, self.sim_neighbor_size),
-                                            mode="w+")
+            if sim_matrix:
+                return
+            else:
+                logging.info("Start calculating item-sim matrix.")
+                item_sim_matrix_id = np.memmap(path.join(tmp_dir, "item_sim_matrix_id"),
+                                               dtype=np.int32,
+                                               shape=(self.item_num, self.sim_neighbor_size),
+                                               mode="w+")
+                item_sim_matrix_val = np.memmap(path.join(tmp_dir, "item_sim_matrix_val"),
+                                                dtype=np.float64,
+                                                shape=(self.item_num, self.sim_neighbor_size),
+                                                mode="w+")
 
-            num_cores = multiprocessing.cpu_count()
-            Parallel(n_jobs=num_cores)(delayed(self.sim_of_item)(item_sim_matrix_id,
-                                                                 item_sim_matrix_val,
-                                                                 item_id)
-                                       for item_id in range(self.item_num))
+                num_cores = multiprocessing.cpu_count()
+                Parallel(n_jobs=num_cores)(delayed(self.sim_of_item)(item_sim_matrix_id,
+                                                                     item_sim_matrix_val,
+                                                                     item_id)
+                                           for item_id in range(self.item_num))
 
-            logging.info("Item-sim matrix done.")
+                logging.info("Item-sim matrix done.")
 
     def sim_of_item(self, item_sim_matrix_id, item_sim_matrix_val, item_id):
         logging.info("item {} start".format(item_id))
@@ -112,7 +116,7 @@ class CF(object):
         logging.info("item {} done.".format(item_id))
 
     def cosine(self, x, y):
-        return x.T.dot(y) / np.sqrt(np.sum(x ** 2) * np.sum(y ** 2))
+        return x.T.dot(y) / np.sqrt(np.sum(np.square(x)) * np.sum(np.square(y)))
 
     def recommend(self, max_size):
         rec_dict = dict()
@@ -122,14 +126,12 @@ class CF(object):
             item_liked = self._user_liked_item(user_id)
             item_liked_score = self.ui_matrix_csr[user_id, item_liked].todense()
             rec_score = dict()
-            print(item_liked)
             for item_id in item_liked:
                 for candidate_item_id in sp.find(self.item_sim_matrix.getrow(item_id))[1]:
                     if rec_score.get(candidate_item_id) is None:
                         sim_vec = self.item_sim_matrix[item_liked, candidate_item_id].todense()
-                        rec_score[candidate_item_id] = item_liked_score.T.dot(sim_vec) / np.sum(sim_vec)
+                        rec_score[candidate_item_id] = item_liked_score.dot(sim_vec) / np.sum(sim_vec)
 
-            print(rec_score.keys())
             rec_item_list = sorted(rec_score.keys(), key=lambda x: rec_score[x], reverse=True)[0:max_size]
             rec_dict[user_id] = [(x, float(rec_score[x])) for x in rec_item_list]
 

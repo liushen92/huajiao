@@ -62,6 +62,9 @@ class TopKTester(object):
         _list = dict()
         with open(filename) as f:
             for l in f.readlines():
+                tmp = l.strip().split("\t")
+                if len(tmp) == 1:
+                    continue
                 user_md5 = l.strip().split("\t")[0]
                 _dict[user_md5] = dict()
                 _list[user_md5] = list()

@@ -6,7 +6,7 @@ from .mf import MFDataProvider
 from .constants import *
 
 
-class RateRegression(object):
+class ProbRateRegression(object):
     def __init__(self):
         # model configuration parameters
         self.user_num = None
@@ -34,6 +34,7 @@ class RateRegression(object):
     def _parse_config(self, configs):
         self.user_embedding_size = configs['user_embedding_size']
         self.item_embedding_size = configs['item_embedding_size']
+        self.class_num = configs["class_num"]
         self.learning_rate = configs.get('learning_rate', 0.01)
         self.training_epochs = configs.get('training_epochs', 10)
         self.batch_size = configs.get('batch_size', 128)
@@ -43,8 +44,10 @@ class RateRegression(object):
         self.lambda_value = configs.get("lambda_value", 0.0001)
         self.keep_prob_value = configs.get("keep_prob_value", 1.0)
 
-    def define_model(self, configs, is_training=True):
+    def define_model(self, configs):
         self._parse_config(configs)
+
+    def define_network(self, configs, is_training=True):
         with tf.name_scope("placeholders"):
             self.user_idx = tf.placeholder(dtype=tf.int32, shape=[None], name="user_idx")
             self.item_idx = tf.placeholder(dtype=tf.int32, shape=[None], name="item_idx")
@@ -82,14 +85,16 @@ class RateRegression(object):
                 parameters["h" + str(i + 1)] = tf.nn.dropout(parameters["h" + str(i + 1)], keep_prob=self.keep_prob)
 
         with tf.name_scope("loss"):
-            self.pred = tf.layers.dense(parameters["h" + str(len(configs["layers"]))], 1,
-                                        activation=None,
+            self.pred = tf.layers.dense(parameters["h" + str(len(configs["layers"]))], self.class_num, activation=None,
                                         name="prediction")
-            self.loss = tf.losses.mean_squared_error(tf.reshape(self.user_item_score, [-1, 1]), self.pred)
+            self.loss = tf.losses.
             self.loss += self.lambda_value * (tf.add_n([tf.reduce_mean(tf.square(user_emb)), tf.reduce_mean(tf.square(item_emb))]))
 
         with tf.name_scope("optimizer"):
             self.optimizer = tf.train.AdamOptimizer().minimize(self.loss)
+
+    def define_prob_model(self):
+        
 
     def create_feed_dict(self, input_batch):
         return {
