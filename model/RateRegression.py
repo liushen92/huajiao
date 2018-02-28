@@ -43,7 +43,7 @@ class RateRegression(object):
         self.lambda_value = configs.get("lambda_value", 0.0001)
         self.keep_prob_value = configs.get("keep_prob_value", 1.0)
 
-    def define_model(self, configs, is_training=True):
+    def define_model(self, configs):
         self._parse_config(configs)
         with tf.name_scope("placeholders"):
             self.user_idx = tf.placeholder(dtype=tf.int32, shape=[None], name="user_idx")
@@ -84,8 +84,11 @@ class RateRegression(object):
         with tf.name_scope("loss"):
             self.pred = tf.layers.dense(parameters["h" + str(len(configs["layers"]))], 1,
                                         activation=None,
+                                        kernel_regularizer=regularizer,
+                                        bias_regularizer=regularizer,
+                                        kernel_initializer=initializer,
                                         name="prediction")
-            self.loss = tf.losses.mean_squared_error(tf.reshape(self.user_item_score, [-1, 1]), self.pred)
+            self.loss = tf.losses.mean_squared_error(tf.reshape(self.user_item_score, [-1, 1]), self.pred) + tf.losses.get_regularization_loss()
             self.loss += self.lambda_value * (tf.add_n([tf.reduce_mean(tf.square(user_emb)), tf.reduce_mean(tf.square(item_emb))]))
 
         with tf.name_scope("optimizer"):

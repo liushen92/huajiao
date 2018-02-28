@@ -7,6 +7,7 @@ import model.RateRegression as rr
 import model.TagRateRegression as trr
 import model.TaggingTagRateRegression as ttrr
 import model.CF as cf
+import model.ProbRatingRegression as prr
 from model.constants import *
 from model.DataInterface import DataInterface
 import argparse
@@ -77,6 +78,14 @@ def run_cf(configs):
     input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=configs["rec_dict"])
 
 
+def run_prr(sess, configs):
+    input_data = mf.MFDataProvider()
+    model = prr.ProbRateRegression()
+    model.fit(sess=sess, input_data=input_data, configs=configs)
+    rec_dict = model.recommend(sess, configs["max_size"])
+    input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=configs["rec_dict"])
+
+
 def generate_test_data(filename):
     input_data = DataInterface()
     input_data.generate_test_data(os.path.join(data_dir, "test_data"),
@@ -114,6 +123,8 @@ def main():
             run_trr(sess, configs)
         elif model_type == "ttrr":
             run_ttrr(sess, configs)
+        elif model_type == "prr":
+            run_prr(sess, configs)
         else:
             logging.error("Unknown model.")
 
