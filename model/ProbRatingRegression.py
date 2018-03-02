@@ -2,8 +2,43 @@
 import tensorflow as tf
 import numpy as np
 import logging
-from .mf import MFDataProvider
+from .DataInterface import DataInterface
 from .constants import *
+from os import path
+
+
+class ProbRRDataProvider(DataInterface):
+    def __init__(self):
+        super(ProbRRDataProvider, self).__init__()
+        self.load_data(path.join(data_dir, "train_data"))
+        self._parse_dict_to_nparray(self.user_anchor_behavior)
+
+    def batch_generator(self, batch_size):
+        """
+        :param batch_size: size of mini-batch
+        :return: batch_data: a generator for generate batch
+        """
+        np.random.shuffle(self.user_watch_time)
+        for i in range(0, len(self.user_watch_time), batch_size):
+            batch_data = dict()
+            start_idx = i
+            end_idx = min(i + batch_size, len(self.user_watch_time))
+            batch_data['user_idx'] = self.user_watch_time[start_idx: end_idx, 0].astype(np.int32)
+            batch_data['item_idx'] = self.user_watch_time[start_idx: end_idx, 1].astype(np.int32)
+            batch_data['user_item_score'] = self.user_watch_time[start_idx: end_idx, 2]
+            yield batch_data
+
+    def _parse_dict_to_nparray(self, user_anchor_behavior):
+        user_watch_time_list = list()
+        for user_id in user_anchor_behavior:
+            for anchor_id in user_anchor_behavior[user_id]:
+                user_watch_time_list.append([user_id, anchor_id,
+                                             self._convert_watch_time_to_score(
+                                                 user_anchor_behavior[user_id][anchor_id][0])])
+        self.user_watch_time = np.array(user_watch_time_list)
+
+    def _convert_watch_time_to_score(self, watch_time):
+        return 1 / (1 + np.exp(- 0.01 * watch_time))
 
 
 class ProbRateRegression(object):
@@ -96,7 +131,10 @@ class ProbRateRegression(object):
             self.softmax = tf.nn.softmax(logits=logits, name="softmax")
 
         with tf.name_scope("loss"):
-            self.cond_prob = tf.exp(- tf.square(tf.reshape(self.user_item_score, (-1, 1)) - self.means) / (2 * tf.square(self.stds))) / self.stds * self.prob
+            # self.cond_prob = tf.square(tf.reshape(self.user_item_score, (-1, 1)) - self.means) / (2 * tf.square(self.stds)) + 2 * tf.log(self.stds)
+            # min_label = tf.argmin(self.cond_prob, axis=1)
+            # self.loss = tf.losses.sparse_softmax_cross_entropy(labels=min_label, logits=self.softmax)
+            self.cond_prob = tf.exp(-tf.square(tf.reshape(self.user_item_score, (-1, 1)) - self.means) / (2 * tf.square(self.stds))) / self.stds * self.prob
             self.cond_prob = self.cond_prob / tf.reduce_sum(self.cond_prob, axis=1, keep_dims=True)
             self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=self.cond_prob, logits=self.softmax))
             self.loss += self.lambda_value * (tf.add_n([tf.reduce_mean(tf.square(user_emb)), tf.reduce_mean(tf.square(item_emb))])) + tf.losses.get_regularization_loss()
@@ -121,7 +159,7 @@ class ProbRateRegression(object):
         for input_batch in batch_gen:
             i += 1
             loss_batch, softmax, cond_prob, _ = sess.run([self.loss, self.softmax, self.cond_prob, self.optimizer],
-                                              feed_dict=self.create_feed_dict(input_batch))
+                                                         feed_dict=self.create_feed_dict(input_batch))
             total_loss += loss_batch
             prob_mean += input_batch["user_item_score"].T.dot(softmax)
             prob_y_2 += np.sum(np.multiply(np.square(input_batch["user_item_score"].reshape((-1, 1))), softmax), axis=0)
@@ -129,6 +167,7 @@ class ProbRateRegression(object):
             if i % self.display_step == 0:
                 logging.info('Average loss at epoch {} step {}: {:5.6f}'
                              .format(epoch_idx, i, total_loss / self.display_step))
+                logging.info("softmax = {}".format(np.sum(softmax, axis=0)))
                 total_loss = 0.0
 
         self.means = tf.convert_to_tensor(prob_mean / (prob_sum + 0.000001))
@@ -171,7 +210,6 @@ class ProbRateRegression(object):
             feed_dict = {self.user_idx: np.array([user_id] * self.item_num), self.item_idx: item_list, self.keep_prob: 1.0}
             softmax = sess.run(self.softmax, feed_dict=feed_dict)
             rec_score = np.sum(np.multiply(softmax, self.means.eval()), axis=1)
-            print(rec_score)
             rec_item_list = sorted(range(self.item_num), key=lambda x: rec_score[x], reverse=True)[0:max_size]
             rec_dict[user_id] = [(x, float(rec_score[x])) for x in rec_item_list]
         return rec_dict

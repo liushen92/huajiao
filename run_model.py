@@ -8,6 +8,7 @@ import model.TagRateRegression as trr
 import model.TaggingTagRateRegression as ttrr
 import model.CF as cf
 import model.ProbRatingRegression as prr
+import model.MostWatched as mw
 from model.constants import *
 from model.DataInterface import DataInterface
 import argparse
@@ -79,12 +80,19 @@ def run_cf(configs):
 
 
 def run_prr(sess, configs):
-    input_data = mf.MFDataProvider()
+    input_data = prr.ProbRRDataProvider()
     model = prr.ProbRateRegression()
     model.fit(sess=sess, input_data=input_data, configs=configs)
     rec_dict = model.recommend(sess, configs["max_size"])
     input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=configs["rec_dict"])
 
+
+def run_mw(configs):
+    input_data = mw.MWDataProvider()
+    model = mw.MostWatched()
+    model.fit(input_data=input_data)
+    rec_dict = model.recommend(configs["max_size"])
+    input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=configs["rec_dict"])
 
 def generate_test_data(filename):
     input_data = DataInterface()
@@ -104,6 +112,10 @@ def main():
     if model_type == "cf":
         run_cf(configs)
         return
+    elif model_type == "mw":
+        run_mw(configs)
+        return
+
     # GPU setting of tf
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = "1"

@@ -42,7 +42,7 @@ class MFDataProvider(DataInterface):
         return np.log(np.log(watch_time + 1) + 1)
 
 
-class MatrixFactorization(object):
+class ConstrainedPMF(object):
     def __init__(self):
         # model configuration parameters
         self.user_num = None
@@ -62,9 +62,7 @@ class MatrixFactorization(object):
         self.user_idx = None
         self.item_idx = None
         self.item_emb_matrix = None
-        self.item_bias_matrix = None
         self.user_emb_matrix = None
-        self.user_bias_matrix = None
         self.loss = None
         self.optimizer = None
         self.pred = None
@@ -93,30 +91,18 @@ class MatrixFactorization(object):
                                   -self.emb_init_value, self.emb_init_value),
                 name="user_emb_w"
             )
-            self.user_bias_matrix = tf.Variable(
-                tf.random_uniform([self.user_num, 1],
-                                  -self.emb_init_value, self.emb_init_value),
-                name="user_emb_b"
-            )
             self.item_emb_matrix = tf.Variable(
                 tf.random_uniform([self.item_num, self.embedding_size],
                                   -self.emb_init_value, self.emb_init_value),
                 name="item_emb_w"
             )
-            self.item_bias_matrix = tf.Variable(
-                tf.random_uniform([self.item_num, 1],
-                                  -self.emb_init_value, self.emb_init_value),
-                name="item_emb_b"
-            )
-
+            self.item_con_matrix = tf.get_variable("item_con_matrix",
+                initializer=tf.random_uniform([self.item_num, self.embedding_size],
+                                              -self.emb_init_value, self.emb_init_value))
         with tf.name_scope("loss"):
             user_emb = tf.nn.embedding_lookup(self.user_emb_matrix, self.user_idx, name="user_emb")
-            user_bias = tf.nn.embedding_lookup(self.user_bias_matrix, self.user_idx, name="user_bias")
             item_emb = tf.nn.embedding_lookup(self.item_emb_matrix, self.item_idx, name="item_emb")
-            item_bias = tf.nn.embedding_lookup(self.item_bias_matrix, self.item_idx, name="item_bias")
-            self.pred = tf.add_n([tf.reduce_sum(tf.multiply(user_emb, item_emb), axis=1, keep_dims=True),
-                                  user_bias,
-                                  item_bias], name="prediction")
+            self.pred = tf.add_n([tf.reduce_sum(tf.multiply(user_emb, item_emb), axis=1, keep_dims=True), name="prediction")
             self.loss = tf.reduce_mean(tf.square(self.user_item_score - self.pred)
                                        + self.lambda_value * (tf.add_n([tf.reduce_mean(tf.square(user_emb)),
                                                                         tf.reduce_mean(tf.square(item_emb)),
