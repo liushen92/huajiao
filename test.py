@@ -68,15 +68,12 @@ class TopKTester(object):
                 user_md5 = l.strip().split("\t")[0]
                 _dict[user_md5] = dict()
                 _list[user_md5] = list()
-                total_count = 0
-                for tmp in l.strip().split("\t")[1].split(" "):
-                    item_md5, item_count = tmp.split(":")
-                    total_count += float(item_count)
 
                 for tmp in l.strip().split("\t")[1].split(" "):
                     item_md5, item_count = tmp.split(":")
-                    _dict[user_md5][item_md5] = float(item_count) / total_count
+                    _dict[user_md5][item_md5] = float(item_count)
                     _list[user_md5].append(item_md5)
+
         return _dict, _list
 
 

@@ -9,6 +9,7 @@ import model.TaggingTagRateRegression as ttrr
 import model.CF as cf
 import model.ProbRatingRegression as prr
 import model.MostWatched as mw
+import model.bpr as bpr
 from model.constants import *
 from model.DataInterface import DataInterface
 import argparse
@@ -94,6 +95,15 @@ def run_mw(configs):
     rec_dict = model.recommend(configs["max_size"])
     input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=configs["rec_dict"])
 
+
+def run_bpr(sess, configs):
+    input_data = bpr.BPRDataProvider()
+    model = bpr.BPR()
+    model.fit(sess=sess, input_data=input_data, configs=configs)
+    rec_dict = model.recommend(configs["max_size"])
+    input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=configs["rec_dict"])
+
+
 def generate_test_data(filename):
     input_data = DataInterface()
     input_data.generate_test_data(os.path.join(data_dir, "test_data"),
@@ -137,6 +147,8 @@ def main():
             run_ttrr(sess, configs)
         elif model_type == "prr":
             run_prr(sess, configs)
+        elif model_type == "bpr":
+            run_bpr(sess, configs)
         else:
             logging.error("Unknown model.")
 

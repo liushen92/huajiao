@@ -12,13 +12,13 @@ class RRDataProvider(DataInterface):
         super(RRDataProvider, self).__init__()
         self.load_data(path.join(data_dir, "train_data"))
         self._parse_dict_to_nparray(self.user_anchor_behavior)
+        np.random.shuffle(self.user_watch_time)
 
     def batch_generator(self, batch_size):
         """
         :param batch_size: size of mini-batch
         :return: batch_data: a generator for generate batch
         """
-        np.random.shuffle(self.user_watch_time)
         for i in range(0, len(self.user_watch_time), batch_size):
             batch_data = dict()
             start_idx = i
@@ -73,10 +73,10 @@ class RateRegression(object):
         self.learning_rate = configs.get('learning_rate', 0.01)
         self.training_epochs = configs.get('training_epochs', 10)
         self.batch_size = configs.get('batch_size', 128)
-        self.emb_init_value = configs.get('batch_size', 2)
+        self.emb_init_value = configs.get('emb_init_value', 1)
         self.display_step = configs.get('display_step', 100)
         self.optimize_method = configs.get('optimize_method', 'sgd')
-        self.lambda_value = configs.get("lambda_value", 0.0001)
+        self.lambda_value = configs.get("lambda_value", 0.001)
         self.keep_prob_value = configs.get("keep_prob_value", 1.0)
 
     def define_model(self, configs):

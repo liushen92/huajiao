@@ -95,7 +95,7 @@ class TagRateRegression(object):
         self.learning_rate = configs.get('learning_rate', 0.01)
         self.training_epochs = configs.get('training_epochs', 10)
         self.batch_size = configs.get('batch_size', 128)
-        self.emb_init_value = configs.get('batch_size', 2)
+        self.emb_init_value = configs.get('emb_init_value', 1)
         self.display_step = configs.get('display_step', 100)
         self.optimize_method = configs.get('optimize_method', 'adam')
         self.emb_lambda = configs.get("emb_lambda", 0.0001)
