@@ -66,6 +66,7 @@ class RateRegression(object):
         self.loss = None
         self.pred = None
         self.optimizer = None
+        self.is_training = None
 
     def _parse_config(self, configs):
         self.user_embedding_size = configs['user_embedding_size']
@@ -86,6 +87,7 @@ class RateRegression(object):
             self.item_idx = tf.placeholder(dtype=tf.int32, shape=[None], name="item_idx")
             self.user_item_score = tf.placeholder(dtype=tf.float32, shape=[None], name="user_item_score")
             self.keep_prob = tf.placeholder(dtype=tf.float32, name="keep_prob")
+            self.is_training = tf.placeholder(dtype=tf.bool, name="is_training")
 
         with tf.name_scope("embedding"):
             user_emb_matrix = tf.Variable(
@@ -115,7 +117,8 @@ class RateRegression(object):
                                                                kernel_regularizer=regularizer,
                                                                bias_regularizer=regularizer,
                                                                kernel_initializer=initializer)
-                parameters["h" + str(i + 1)] = tf.nn.dropout(parameters["h" + str(i + 1)], keep_prob=self.keep_prob)
+                parameters["h" + str(i + 1)] = tf.layers.batch_normalization(parameters["h" + str(i + 1)],
+                                                                             training=self.is_training)
 
         with tf.name_scope("loss"):
             self.pred = tf.layers.dense(parameters["h" + str(len(configs["layers"]))], 1,
@@ -128,15 +131,9 @@ class RateRegression(object):
             self.loss += self.lambda_value * (tf.add_n([tf.reduce_mean(tf.square(user_emb)), tf.reduce_mean(tf.square(item_emb))]))
 
         with tf.name_scope("optimizer"):
-            self.optimizer = tf.train.AdamOptimizer().minimize(self.loss)
-
-    def create_feed_dict(self, input_batch):
-        return {
-            self.user_idx: input_batch["user_idx"],
-            self.item_idx: input_batch["item_idx"],
-            self.user_item_score: input_batch["user_item_score"],
-            self.keep_prob: self.keep_prob_value,
-        }
+            update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+            with tf.control_dependencies(update_ops):
+                self.optimizer = tf.train.AdamOptimizer().minimize(self.loss)
 
     def run_epoch(self, sess, epoch_idx, batch_gen):
         total_loss = 0.0
@@ -144,7 +141,13 @@ class RateRegression(object):
         for input_batch in batch_gen:
             i += 1
             loss_batch, pred, _ = sess.run([self.loss, self.pred, self.optimizer],
-                                           feed_dict=self.create_feed_dict(input_batch))
+                                           feed_dict={
+                                               self.user_idx: input_batch["user_idx"],
+                                               self.item_idx: input_batch["item_idx"],
+                                               self.user_item_score: input_batch["user_item_score"],
+                                               self.keep_prob: self.keep_prob_value,
+                                               self.is_training: True,
+                                           })
             total_loss += loss_batch
             if i % self.display_step == 0:
                 logging.info('Average loss at epoch {} step {}: {:5.6f}'
@@ -183,8 +186,9 @@ class RateRegression(object):
         item_list = np.array(range(self.item_num))
         for user_id in range(self.user_num):
             logging.info("recommend for user {}".format(user_id))
-            feed_dict = {self.user_idx: np.array([user_id] * self.item_num), self.item_idx: item_list, self.keep_prob: 1.0}
-            rec_score = sess.run(self.pred, feed_dict=feed_dict)
+            rec_score = sess.run(self.pred, feed_dict={self.user_idx: np.array([user_id] * self.item_num),
+                                                       self.item_idx: item_list,
+                                                       self.is_training: False})
             rec_item_list = sorted(range(self.item_num), key=lambda x: rec_score[x], reverse=True)[0:max_size]
             rec_dict[user_id] = [(x, float(rec_score[x])) for x in rec_item_list]
         return rec_dict

@@ -9,6 +9,8 @@ configs = {
     'emb_init_value': 1,
     'lambda_value': 0.001,
     'display_step': 100,
+    "neg_sample_nums": 10,
+    "pos_item_threshold": 300,
     "max_size": 30,
     'model_name': "bpr_model",
     "save_path": path.join(tmp_dir, "bpr"),

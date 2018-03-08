@@ -8,10 +8,12 @@ import logging
 
 
 class BPRDataProvider(DataInterface):
-    def __init__(self):
+    def __init__(self, pos_item_threshold):
         super(BPRDataProvider, self).__init__()
+        self.pairs_array = None
         self.pos_samples_size = None
         self.user_pos_item_set = None
+        self.pos_item_threshold = pos_item_threshold
         self.load_data(path.join(data_dir, "train_data"))
         self.find_pos_items(self.user_anchor_behavior)
 
@@ -38,7 +40,7 @@ class BPRDataProvider(DataInterface):
         for user_id in user_anchor_behavior:
             self.user_pos_item_set[user_id] = set()
             for anchor_id in user_anchor_behavior[user_id]:
-                if user_anchor_behavior[user_id][anchor_id][0] >= 60:
+                if user_anchor_behavior[user_id][anchor_id][0] >= self.pos_item_threshold:
                     self.user_pos_item_set[user_id].add(anchor_id)
             self.pos_samples_size += len(self.user_pos_item_set[user_id])
 
@@ -64,6 +66,7 @@ class BPR(object):
         self.training_epochs = None
         self.display_step = None
         self.emb_init_value = None
+        self.tau = None
 
         # model variables
         self.user_idx = None
@@ -82,6 +85,7 @@ class BPR(object):
         self.emb_init_value = configs.get('emb_init_value', 1)
         self.display_step = configs.get('display_step', 100)
         self.lambda_value = configs.get("lambda_value", 0.001)
+        self.tau = configs.get("tau", 0.3)
 
     def define_model(self, configs):
         self._parse_config(configs)
@@ -108,8 +112,10 @@ class BPR(object):
             j = tf.nn.embedding_lookup(self.item_emb_matrix, self.neg_item_idx)
 
         with tf.name_scope("loss"):
-            self.loss = - tf.reduce_mean(tf.log(tf.sigmoid(
-                tf.reduce_sum(tf.multiply(u, i), axis=1) - tf.reduce_sum(tf.multiply(u, j), axis=1))))
+            # self.loss = -tf.reduce_mean(tf.log(tf.sigmoid(
+            #    tf.reduce_sum(tf.multiply(u, i), axis=1) - tf.reduce_sum(tf.multiply(u, j), axis=1))))
+
+            self.loss = tf.reduce_mean(tf.nn.relu(self.tau - tf.reduce_sum(tf.multiply(u, i), axis=1) + tf.reduce_sum(tf.multiply(u, j), axis=1)), axis=0)
             self.loss = self.loss + self.lambda_value * tf.reduce_mean(
                 tf.add_n([tf.square(u), tf.square(i), tf.square(j)]))
 
@@ -119,19 +125,16 @@ class BPR(object):
         with tf.name_scope("prediction"):
             self.score = tf.reduce_sum(tf.multiply(u, i), axis=1)
 
-    def create_feed_dict(self, input_batch):
-        return {
-            self.user_idx: input_batch["user_idx"],
-            self.pos_item_idx: input_batch["pos_item_idx"],
-            self.neg_item_idx: input_batch["neg_item_idx"],
-        }
-
     def run_epoch(self, sess, epoch_idx, batch_gen):
         total_loss = 0.0
         i = 0
         for input_batch in batch_gen:
             i += 1
-            loss_batch, _ = sess.run([self.loss, self.optimizer], feed_dict=self.create_feed_dict(input_batch))
+            loss_batch, _ = sess.run([self.loss, self.optimizer],
+                                     feed_dict={self.user_idx: input_batch["user_idx"],
+                                                self.pos_item_idx: input_batch["pos_item_idx"],
+                                                self.neg_item_idx: input_batch["neg_item_idx"],
+                                                })
             total_loss += loss_batch
             if i % self.display_step == 0:
                 logging.info('Average loss at epoch {} step {}: {:5.6f}'
@@ -147,7 +150,7 @@ class BPR(object):
         logging.info("Start training")
         for i in range(1, self.training_epochs + 1):
             logging.info("training epochs {}".format(i))
-            batch_gen = input_data.batch_generator(self.batch_size)
+            batch_gen = input_data.batch_generator(self.batch_size, configs["neg_sample_nums"])
             self.run_epoch(sess, i, batch_gen)
         logging.info("Training complete and saving...")
         saver.save(sess, path.join(configs["save_path"], configs["model_name"]))

@@ -10,6 +10,7 @@ import model.CF as cf
 import model.ProbRatingRegression as prr
 import model.MostWatched as mw
 import model.bpr as bpr
+import model.RateRegressionBPR as rrbpr
 from model.constants import *
 from model.DataInterface import DataInterface
 import argparse
@@ -48,8 +49,16 @@ def run_mf(sess, configs):
 
 
 def run_rr(sess, configs):
-    input_data = mf.MFDataProvider()
+    input_data = rr.RRDataProvider()
     model = rr.RateRegression()
+    model.fit(sess=sess, input_data=input_data, configs=configs)
+    rec_dict = model.recommend(sess, configs["max_size"])
+    input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=configs["rec_dict"])
+
+
+def run_rrbpr(sess, configs):
+    input_data = bpr.BPRDataProvider(configs["pos_item_threshold"])
+    model = rrbpr.RateRegression()
     model.fit(sess=sess, input_data=input_data, configs=configs)
     rec_dict = model.recommend(sess, configs["max_size"])
     input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=configs["rec_dict"])
@@ -97,10 +106,10 @@ def run_mw(configs):
 
 
 def run_bpr(sess, configs):
-    input_data = bpr.BPRDataProvider()
+    input_data = bpr.BPRDataProvider(configs["pos_item_threshold"])
     model = bpr.BPR()
     model.fit(sess=sess, input_data=input_data, configs=configs)
-    rec_dict = model.recommend(configs["max_size"])
+    rec_dict = model.recommend(sess=sess, max_size=configs["max_size"])
     input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=configs["rec_dict"])
 
 
@@ -149,6 +158,8 @@ def main():
             run_prr(sess, configs)
         elif model_type == "bpr":
             run_bpr(sess, configs)
+        elif model_type == "rrbpr":
+            run_rrbpr(sess, configs)
         else:
             logging.error("Unknown model.")
 
