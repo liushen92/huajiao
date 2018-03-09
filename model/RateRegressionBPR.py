@@ -30,6 +30,8 @@ class RateRegression(object):
         self.user_emb_matrix = None
         self.item_emb_matrix = None
         self.keep_prob = None
+        self.is_training = None
+        self.keep_prob = None
         self.loss = None
         self.pos_pred = None
         self.neg_pred = None
@@ -54,7 +56,8 @@ class RateRegression(object):
             initializer = tf.contrib.layers.xavier_initializer(uniform=False)
             user_emb = tf.nn.embedding_lookup(self.user_emb_matrix, user_idx)
             item_emb = tf.nn.embedding_lookup(self.item_emb_matrix, item_idx)
-            parameters["h0"] = tf.concat([user_emb, item_emb], 1)
+            # parameters["h0"] = tf.concat([user_emb, item_emb], 1)
+            parameters["h0"] = tf.multiply(user_emb, item_emb)
             for i in range(len(configs["layers"])):
                 parameters["h" + str(i + 1)] = tf.layers.dense(parameters["h" + str(i)],
                                                                configs["layers"][i],
@@ -63,6 +66,7 @@ class RateRegression(object):
                                                                kernel_initializer=initializer,
                                                                name="h" + str(i + 1),
                                                                reuse=reuse)
+
             pred = tf.layers.dense(parameters["h" + str(len(configs["layers"]))], 1,
                                    activation=None,
                                    kernel_regularizer=regularizer,
@@ -78,7 +82,7 @@ class RateRegression(object):
             self.user_idx = tf.placeholder(dtype=tf.int32, shape=[None], name="user_idx")
             self.pos_item_idx = tf.placeholder(dtype=tf.int32, shape=[None], name="pos_item_idx")
             self.neg_item_idx = tf.placeholder(dtype=tf.int32, shape=[None], name="neg_item_idx")
-            self.keep_prob = tf.placeholder(dtype=tf.float32, name="keep_prob")
+            self.is_training = tf.placeholder(dtype=tf.bool, name="is_training")
 
         with tf.name_scope("embedding"):
             self.user_emb_matrix = tf.Variable(
