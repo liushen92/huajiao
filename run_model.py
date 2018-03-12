@@ -11,6 +11,7 @@ import model.ProbRatingRegression as prr
 import model.MostWatched as mw
 import model.bpr as bpr
 import model.RateRegressionBPR as rrbpr
+import model.TTRateRegressionBPR as ttrrbpr
 from model.constants import *
 from model.DataInterface import DataInterface
 import argparse
@@ -113,6 +114,14 @@ def run_bpr(sess, configs):
     input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=configs["rec_dict"])
 
 
+def run_ttrrbbpr(sess, configs):
+    input_data = ttrrbpr.TTRRBPRDataProvider(configs["pos_item_threshold"])
+    model = ttrrbpr.TaggingTagRateRegressionBPR()
+    model.fit(sess=sess, input_data=input_data, configs=configs)
+    rec_dict = model.recommend(sess, configs["max_size"])
+    input_data.save_rec_dict(recommend_dict=rec_dict, path_to_rec_file=configs["rec_dict"])
+
+
 def generate_test_data(filename):
     input_data = DataInterface()
     input_data.generate_test_data(os.path.join(data_dir, "test_data"),
@@ -137,7 +146,7 @@ def main():
 
     # GPU setting of tf
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-    os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+    os.environ["CUDA_VISIBLE_DEVICES"] = "0"
     gpu_options = tf.GPUOptions(allow_growth=True)
 
     # add seed to get reproducible result.
@@ -160,6 +169,8 @@ def main():
             run_bpr(sess, configs)
         elif model_type == "rrbpr":
             run_rrbpr(sess, configs)
+        elif model_type == "ttrrbpr":
+            run_ttrrbbpr(sess, configs)
         else:
             logging.error("Unknown model.")
 

@@ -56,8 +56,8 @@ class RateRegression(object):
             initializer = tf.contrib.layers.xavier_initializer(uniform=False)
             user_emb = tf.nn.embedding_lookup(self.user_emb_matrix, user_idx)
             item_emb = tf.nn.embedding_lookup(self.item_emb_matrix, item_idx)
-            parameters["h0"] = tf.concat([user_emb, item_emb], 1)
-            # parameters["h0"] = tf.multiply(user_emb, item_emb)
+            # parameters["h0"] = tf.concat([user_emb, item_emb], 1)
+            parameters["h0"] = user_emb + item_emb
             for i in range(len(configs["layers"])):
                 parameters["h" + str(i + 1)] = tf.layers.dense(parameters["h" + str(i)],
                                                                configs["layers"][i],
@@ -126,6 +126,7 @@ class RateRegression(object):
                 total_loss = 0.0
 
     def fit(self, sess, input_data, configs):
+        self.input_data = input_data
         self.user_num = input_data.user_num
         self.item_num = input_data.anchor_num
         self.define_model(configs)
@@ -148,6 +149,8 @@ class RateRegression(object):
             logging.info("recommend for user {}".format(user_id))
             rec_score = sess.run(self.pos_pred, feed_dict={self.user_idx: np.array([user_id] * self.item_num),
                                                        self.pos_item_idx: item_list})
-            rec_item_list = sorted(range(self.item_num), key=lambda x: rec_score[x], reverse=True)[0:max_size]
+            rec_item_list = sorted([x for x in range(self.item_num)
+                                    if self.input_data.user_anchor_behavior[user_id].get(x) is None],
+                                   key=lambda x: rec_score[x], reverse=True)[0:max_size]
             rec_dict[user_id] = [(x, float(rec_score[x])) for x in rec_item_list]
         return rec_dict

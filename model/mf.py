@@ -39,7 +39,7 @@ class MFDataProvider(DataInterface):
         self.user_watch_time = np.array(user_watch_time_list)
 
     def _convert_watch_time_to_score(self, watch_time):
-        return np.log(np.log(watch_time + 1) + 1)
+        return watch_time
 
 
 class MatrixFactorization(object):
@@ -150,6 +150,7 @@ class MatrixFactorization(object):
         }
 
     def fit(self, sess, input_data, configs):
+        self.input_data = input_data
         self.user_num = input_data.user_num
         self.item_num = input_data.anchor_num
         self.define_model(configs)
@@ -183,6 +184,8 @@ class MatrixFactorization(object):
             logging.info("recommend for user {}".format(user_id))
             feed_dict = {self.user_idx: np.array([user_id] * self.item_num), self.item_idx: item_list}
             rec_score = sess.run(self.pred, feed_dict=feed_dict)
-            rec_item_list = sorted(range(self.item_num), key=lambda x: rec_score[x], reverse=True)[0:max_size]
+            rec_item_list = sorted([x for x in range(self.item_num)
+                                    if self.input_data.user_anchor_behavior[user_id].get(x) is None],
+                                   key=lambda x: rec_score[x], reverse=True)[0:max_size]
             rec_dict[user_id] = [(x, float(rec_score[x])) for x in rec_item_list]
         return rec_dict

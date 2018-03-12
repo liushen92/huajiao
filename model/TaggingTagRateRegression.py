@@ -72,8 +72,8 @@ class TtrrDataProvider(MFDataProvider):
             batch_data['user_item_score'] = self.user_watch_time[start_idx: end_idx, 2]
             batch_data['user_labels'] = self.user_label_matrix[batch_data["user_idx"], :].todense()
             batch_data['item_labels'] = self.anchor_label_matrix[batch_data["item_idx"], :].todense()
-            batch_data["user_labels_mask"] = (np.sum(batch_data["user_labels"], axis=1) < 0.0001).astype(np.float32)
-            batch_data["item_labels_mask"] = (np.sum(batch_data["item_labels"], axis=1) < 0.0001).astype(np.float32)
+            batch_data["user_labels_mask"] = (np.sum(batch_data["user_labels"], axis=1) > 0.0001).astype(np.float32)
+            batch_data["item_labels_mask"] = (np.sum(batch_data["item_labels"], axis=1) > 0.0001).astype(np.float32)
             yield batch_data
 
     def tagging_batch_generator(self, batch_size):

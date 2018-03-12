@@ -64,6 +64,7 @@ class CF(object):
         self.user_liked_item_size = configs["user_liked_item_size"]
 
     def fit(self, input_data, configs, sim_matrix=False):
+        self.input_data = input_data
         self.item_num = input_data.item_num
         self.user_num = input_data.user_num
         self.ui_matrix_csc = input_data.ui_matrix_csc
@@ -128,9 +129,10 @@ class CF(object):
             rec_score = dict()
             for item_id in item_liked:
                 for candidate_item_id in sp.find(self.item_sim_matrix.getrow(item_id))[1]:
-                    if rec_score.get(candidate_item_id) is None:
-                        sim_vec = self.item_sim_matrix[item_liked, candidate_item_id].todense()
-                        rec_score[candidate_item_id] = item_liked_score.dot(sim_vec) / np.sum(sim_vec)
+                    if self.input_data.user_anchor_behavior[user_id].get(candidate_item_id) is None:
+                        if rec_score.get(candidate_item_id) is None:
+                            sim_vec = self.item_sim_matrix[item_liked, candidate_item_id].todense()
+                            rec_score[candidate_item_id] = item_liked_score.dot(sim_vec) / np.sum(sim_vec)
 
             rec_item_list = sorted(rec_score.keys(), key=lambda x: rec_score[x], reverse=True)[0:max_size]
             rec_dict[user_id] = [(x, float(rec_score[x])) for x in rec_item_list]
